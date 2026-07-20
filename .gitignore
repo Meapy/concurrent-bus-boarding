@@ -1,0 +1,10 @@
+.vs/
+.idea/
+**/bin/
+**/obj/
+**/Library/
+**/node_modules/
+**/dist/
+artifacts/
+.agent/inspector/
+
