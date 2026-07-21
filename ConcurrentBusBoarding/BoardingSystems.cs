@@ -386,16 +386,7 @@ namespace ConcurrentBusBoarding
                 }
             }
 
-            if (!EntityManager.HasComponent<CarCurrentLane>(bus))
-                return false;
-            CarCurrentLane current = EntityManager.GetComponentData<CarCurrentLane>(bus);
-            if (current.m_Lane != zone.Lane ||
-                (current.m_CurvePosition.z >= current.m_CurvePosition.x ? 1 : -1) != zone.Direction)
-                return false;
-            current.m_CurvePosition.z = target;
-            current.m_LaneFlags &= ~Game.Vehicles.CarLaneFlags.EndReached;
-            EntityManager.SetComponentData(bus, current);
-            return true;
+            return false;
         }
 
         private void ClearApproach(Entity bus)
