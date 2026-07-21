@@ -63,6 +63,15 @@ namespace ConcurrentBusBoarding
             return !selectedOnly || selected || editing;
         }
 
+        internal static float WaitingPosition(float start, float end, int direction, float unit)
+        {
+            float distanceFromFront = Clamp(unit, 0f, 1f);
+            distanceFromFront *= distanceFromFront;
+            return direction >= 0
+                ? end - (end - start) * distanceFromFront
+                : start + (end - start) * distanceFromFront;
+        }
+
         internal static bool PreferZoneCandidate(float currentDistance, bool currentPullIn, bool currentPhysical,
             float candidateDistance, bool candidatePullIn, bool candidatePhysical)
         {

@@ -2,7 +2,7 @@
 
 ## State
 
-The mod includes a per-stop boarding-zone editor, native map editing, front-to-back bus packing, and a zero-speed hold for concurrent boarding. Version 1.0.0 is published on Paradox Mods as mod `152153`; the default overlay preference now shows only the selected stop.
+The mod includes a per-stop boarding-zone editor, native map editing, front-to-back bus packing, a zero-speed hold for concurrent boarding, and passenger waiting areas spread along each boarding zone. Version 1.0.0 is published on Paradox Mods as mod `152153`; the default overlay preference now shows only the selected stop. The passenger-spread change is staged locally for the next release and is not yet published.
 
 ## Behaviour
 
@@ -18,24 +18,25 @@ The mod includes a per-stop boarding-zone editor, native map editing, front-to-b
 - A customized zone is authoritative for new admissions. Automatic pull-in classification, pull-in body-length capacity, and the ordinary two-bus cap no longer apply to that stop: every stopped bus whose centre projects inside the visible custom zone is admitted and participates in the existing native-slot/passenger round-robin. An edit does not interrupt a bus already boarding.
 - Road geometry uses a nearby physical observation before inference. When a bus targeting the stop is within 40 m of the waypoint, its `CarCurrentLane` becomes authoritative; otherwise the resolver compares route endpoints and uses the final navigation lane only as fallback. The render cache retains a valid physical observation over later inferred ones. This separates opposing pull-in bays on the same road and prevents a distant junction or perpendicular driveway from replacing the stop road. Stops remain filtered through `TransportStopData` to passenger buses only; the pedestrian `AccessLane` is never rendered.
 - Pull-in detection is generic across the resolved physical lane and both route endpoint lanes. Native `SecondaryLane`/secondary car-lane metadata identifies purpose-built bays. A route whose distinct start/end lanes have the same `Owner` identifies an inset lane transition within one road edge; this is the native topology exposed by the pictured Butler Street bay. Otherwise, combined `SlaveLaneFlags` must show both a split and a merge. Cross-edge intersection transitions, generic start/end lanes, and one-sided splits or merges remain excluded. A pull-in uses the full physical curve, with capacity calculated from bus body lengths plus 1.5 m gaps.
-- `BoardingZoneApproachSystem` runs on the native 16-frame transport cadence before admission and vehicle AI. It sorts every nearby bus by physical progress, then assigns distinct front-to-back centres in travel order using each vehicle's body length plus a 1.5 m gap.
-- A target is written only when it is strictly ahead on the same resolved physical lane. The final `EndOfPath` navigation entry is preferred; an already-stopped bus may use its same-lane `CarCurrentLane` endpoint as a guarded fallback. The system never changes transforms or rotations and never sends a bus backward. A short-lived approach marker prevents boarding from cancelling a successful forward move; it is removed at the assigned position. If no safe endpoint is available, no marker is added and native placement remains eligible for boarding rather than deadlocking the stop.
+- `BoardingZoneApproachSystem` runs on the native 16-frame transport cadence immediately after vehicle AI and before car navigation. Vehicle AI first creates or refreshes the real final `EndOfPath` entry; the approach pass then sorts every nearby bus by physical progress and assigns distinct front-to-back centres in travel order using each vehicle's body length plus a 1.5 m gap.
+- A target is written only when it is strictly ahead on the same resolved physical lane and the bus has a real final `EndOfPath` navigation entry. `CarCurrentLane.m_CurvePosition` is live physical occupancy, not a destination, and is never rewritten. The system never changes transforms or rotations and never sends a bus backward. A short-lived approach marker prevents boarding from cancelling a successful forward move; it is removed at the assigned position. If no safe navigation endpoint is available, no marker is added and native placement remains eligible for boarding rather than corrupting its departure path.
 - `BoardingHoldSystem` runs after `CarNavigationSystem` and before `CarMoveSystem`. For buses carrying `ConcurrentBoardingActive`, it sets the already-calculated maximum speed and current linear/angular velocity to zero. The former speed-based cleanup has been removed because it could drop the marker before this hold ran. An admitted bus therefore remains stopped through the complete native boarding session; native completion removes the marker before navigation, so it immediately follows its next waypoint instead of moving up within the old stop.
 - `PassengerDistributionSystem` runs every simulation frame after `TransportCarAISystem` and before `ResidentAISystem`. It rotates the stop's vanilla boarding pointer among marked buses, so successive resident update batches select buses round-robin.
+- `PassengerWaitingSpreadSystem` runs after `ResidentAISystem` and before `HumanNavigationSystem`. Native `SetQueuePosition` gives every waiting resident the same stop-centred `HumanCurrentLane.m_QueueArea`; the mod rebuilds that native sidewalk-side sphere and shifts only its longitudinal anchor along the resolved boarding curve. A stable entity hash spreads residents across the full zone with a quadratic bias toward the travel-direction front. The native lateral offset, pedestrian navigation, collision handling, and boarding action remain unchanged.
 - `ResidentAISystem` copies the currently selected vehicle into its native boarding action. The game therefore continues to enforce route compatibility and seat capacity and continues to own fares, animations, waiting statistics, and passenger buffers. Household groups and buses on different routes can make final headcounts differ slightly even though selection turns are even.
 - `BoardingZoneRenderSystem` draws projected blue curves over observed physical bus lanes only. Every stop is drawn independently, even when multiple stops share one lane. Pull-in bays use the full resolved secondary lane. At ordinary stops, the waypoint is the front edge and the 26 m zone extends backward against travel direction. A custom zone is cut from the same physical curve using its saved centre offset and length. A stop's resolved lane is cached after a bus approaches it, and observations are refreshed roughly once per second.
 - `ConcurrentBusBoardingSettings` uses the native global mod-settings store. **Only show the selected stop** defaults on for new installs; existing saved preferences remain unchanged. The renderer hides unselected cached zones while preserving the selected stop and any stop currently open in map editing. This preference does not alter admission or saved per-stop geometry.
 
 ## Verification completed
 
-- `scripts/test-policy.ps1`: passes secondary, same-road transition, and branch-and-rejoin pull-in classification, ordinary proximity/cap admission, pull-in length capacity, unlimited contained custom-zone admission, custom offset/length bounds, stopped-speed readiness, directional bounds, and round-robin assertions.
+- `scripts/test-policy.ps1`: passes secondary, same-road transition, and branch-and-rejoin pull-in classification, ordinary proximity/cap admission, pull-in length capacity, unlimited contained custom-zone admission, custom offset/length bounds, stopped-speed readiness, directional bounds, front-biased passenger waiting positions, and round-robin assertions.
 - UI production bundle and smoke check: passes, including bindings/triggers, the stop-facing lines-section extension, map-editing activation, and emitted CSS.
 - Official Release build: succeeds with 0 warnings and 0 errors, including ECS/Jobs post-processing and Windows/macOS/Linux bundle generation.
-- Latest staged Release pipeline wall time: 62.60 s. This is a build-machine timing, not an in-game frame-time measurement.
-- Managed DLL: 39,936 bytes, SHA-256 `883CD4A619D626ED16E8643FF82F6239299EFE862BA0EBD2BCB5B466BBD579B1`.
+- Latest staged Release pipeline wall time: 19.87 s. This is a build-machine timing, not an in-game frame-time measurement.
+- Managed DLL: 41,472 bytes, SHA-256 `9BD1098364D2E8A351AE6F96AB3505DFD31A4E8A2EA70EB164606714C8FBC9EF`.
 - UI module: 3,257 bytes, SHA-256 `58891FD1F264995CDA5D9BCFF905984AC427F7F43DAD797BA4D3610CE982E76E`.
-- The previous generalized-packing package remains installed locally because Cities II is running. The staged/public 1.0.0 package differs only in the selected-stop overlay default. Its unchanged UI module is 3,257 bytes with SHA-256 `58891FD1F264995CDA5D9BCFF905984AC427F7F43DAD797BA4D3610CE982E76E`.
-- The public Paradox package is version 1.0.0, mod ID `152153`, compatible with game version `1.6.0*`. Its managed DLL is 39,936 bytes with SHA-256 `883CD4A619D626ED16E8643FF82F6239299EFE862BA0EBD2BCB5B466BBD579B1`; the DLL differs from the previous local package only because the selected-stop overlay default changed to on. The public metadata contains five unique screenshots and the GitHub source link.
+- Cities II is closed. The post-vehicle-AI front-packing package under `artifacts/front-pack-post-ai` is installed locally with all eight hashes matching; gameplay confirmation remains. The UI bundle is unchanged.
+- The public Paradox package is version 1.0.1, mod ID `152153`, compatible with game version `1.6.0*`. Its managed DLL is 41,472 bytes with SHA-256 `9BD1098364D2E8A351AE6F96AB3505DFD31A4E8A2EA70EB164606714C8FBC9EF`. The public metadata contains five unique screenshots and the GitHub source link.
 - Installed `Game.dll` IL was rechecked: `StopBoarding` compares the bus with the stop's one native vehicle pointer, clears `Boarding` for a non-owner, and sends a completed owner through the next-dispatch/waypoint path in the same tick.
 - `dotnet format whitespace --verify-no-changes`: no changes required.
 - `git diff --check`: clean.
@@ -52,13 +53,16 @@ The installed game assemblies establish the integration points, but an automated
 6. passengers continue entering each active bus while the native slot rotates.
 7. enabling **Only show the selected stop** hides unselected overlays, selecting a stop reveals its zone, and map editing keeps it visible after the info panel closes.
 8. selecting a served stop before any bus visits immediately exposes the Position, Length, and Edit on map controls instead of the waiting preview.
+9. waiting passengers spread along the sidewalk beside the complete boarding zone, remain concentrated toward its forward end, and can walk to buses boarding farther behind.
+10. every finished bus continues forward from its boarding position without reversing toward the native stop marker.
 
 After completing the live copy and restarting, confirm that any first and second bus stopped within the ordinary rear zone both show `Boarding`, passengers enter/leave both, and the status clears as each departs.
 
 ## Best next work
 
-1. Launch Cities II and confirm three arriving buses take distinct front-to-back positions without turning around and enter boarding together when stopped.
-2. Confirm paired opposing pull-in stops each retain the overlay on their own physical bay.
-3. Select a served bus stop and confirm **Edit on map** focuses its road, its cyan corners resize it, its white centre moves it, and the resulting values persist after save/reload.
-4. Confirm **Use automatic** restores the ordinary two-bus/26 m rule or full detected pull-in rule.
-5. Confirm Butler Street remains on its inset lane and Ashridge Street remains on the driven road rather than the perpendicular driveway.
+1. Launch Cities II and confirm waiting passengers redistribute along both an automatic and a customized zone without entering the road or nearby properties.
+2. Confirm three arriving buses take distinct front-to-back positions without turning around and enter boarding together when stopped, with passengers able to reach every active bus.
+3. Confirm paired opposing pull-in stops each retain the overlay on their own physical bay.
+4. Select a served bus stop and confirm **Edit on map** focuses its road, its cyan corners resize it, its white centre moves it, and the resulting values persist after save/reload.
+5. Confirm **Use automatic** restores the ordinary two-bus/26 m rule or full detected pull-in rule.
+6. Confirm Butler Street remains on its inset lane and Ashridge Street remains on the driven road rather than the perpendicular driveway.
