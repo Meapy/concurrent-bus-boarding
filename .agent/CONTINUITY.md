@@ -75,6 +75,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-21T21:08:44+01:00 [TOOL] The official publisher accepted public Paradox version 1.0.1 for mod `152153`, uploading the exact verified post-vehicle-AI front-packing package with 1.6.0 compatibility, five screenshots, and the GitHub link.
 - 2026-07-21T20:46:17+01:00 [CODE] Moved only `BoardingZoneApproachSystem` from pre-vehicle-AI to post-vehicle-AI/pre-navigation; concurrent admission remains before vehicle AI, and the safe same-lane `EndOfPath` guard is unchanged.
 - 2026-07-21T20:02:00+01:00 [CODE] Removed the current-lane packing fallback and updated behavior/handover documentation; buses without a safe native end-of-path now retain vanilla placement and remain boarding-eligible.
 - 2026-07-21T19:20:00+01:00 [CODE] Added a post-ResidentAI/pre-HumanNavigation waiting-spread system and pure directional distribution assertions; installed Game.dll IL confirms `HumanCurrentLane.m_QueueArea` is the native queue/navigation input.
@@ -165,6 +166,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-21T21:08:44+01:00 [TOOL] Paradox Mods version 1.0.1 published successfully from the exact staged package; the public page responds HTTP 200. GitHub PR #2 is mergeable and its GitGuardian check passes; final documentation commit, PR refresh, and merge remain.
 - 2026-07-21T20:46:17+01:00 [TOOL] Supersedes the staged-only portion of the outcome below: the complete post-vehicle-AI front-packing package is installed locally and all eight source/live hashes match. Restart and gameplay confirmation of front-of-zone stopping and forward departure remain.
 - 2026-07-21T20:46:17+01:00 [TOOL] Policy and formatting checks pass; the official 1.6.0f1 Release pipeline succeeds with 0 warnings/errors in 19.87 s. The staged 41,472-byte DLL SHA-256 is `9BD1098364D2E8A351AE6F96AB3505DFD31A4E8A2EA70EB164606714C8FBC9EF`; Cities II is closed, so exact-package deployment and gameplay confirmation remain.
 - 2026-07-21T20:23:09+01:00 [TOOL] Supersedes the 20:15 deployment blocker: after the user closed Cities II, the complete departure-fix package was installed locally and all eight source/live SHA-256 hashes matched. The managed DLL is 41,472 bytes with SHA-256 `AC33E1C6688B9CC5DAD0677513AE7374AABC13EDDE0AFA23940CF105283BAAA1`; restart and gameplay confirmation that buses depart forward remain.

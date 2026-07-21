@@ -36,7 +36,7 @@ The mod includes a per-stop boarding-zone editor, native map editing, front-to-b
 - Managed DLL: 41,472 bytes, SHA-256 `9BD1098364D2E8A351AE6F96AB3505DFD31A4E8A2EA70EB164606714C8FBC9EF`.
 - UI module: 3,257 bytes, SHA-256 `58891FD1F264995CDA5D9BCFF905984AC427F7F43DAD797BA4D3610CE982E76E`.
 - Cities II is closed. The post-vehicle-AI front-packing package under `artifacts/front-pack-post-ai` is installed locally with all eight hashes matching; gameplay confirmation remains. The UI bundle is unchanged.
-- The public Paradox package is version 1.0.0, mod ID `152153`, compatible with game version `1.6.0*`. Its managed DLL is 39,936 bytes with SHA-256 `883CD4A619D626ED16E8643FF82F6239299EFE862BA0EBD2BCB5B466BBD579B1`; the DLL differs from the previous local package only because the selected-stop overlay default changed to on. The public metadata contains five unique screenshots and the GitHub source link.
+- The public Paradox package is version 1.0.1, mod ID `152153`, compatible with game version `1.6.0*`. Its managed DLL is 41,472 bytes with SHA-256 `9BD1098364D2E8A351AE6F96AB3505DFD31A4E8A2EA70EB164606714C8FBC9EF`. The public metadata contains five unique screenshots and the GitHub source link.
 - Installed `Game.dll` IL was rechecked: `StopBoarding` compares the bus with the stop's one native vehicle pointer, clears `Boarding` for a non-owner, and sends a completed owner through the next-dispatch/waypoint path in the same tick.
 - `dotnet format whitespace --verify-no-changes`: no changes required.
 - `git diff --check`: clean.
