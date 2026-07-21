@@ -1,0 +1,15 @@
+.editor {
+  padding-top: 8rem;
+  padding-bottom: 12rem;
+}
+
+.sliderRow {
+  padding: 2rem 48rem 10rem;
+}
+
+.resetButton {
+  padding-left: 12rem;
+  padding-right: 12rem;
+  font-size: 16rem;
+  text-transform: none;
+}
