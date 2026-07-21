@@ -166,6 +166,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-21T21:12:59+01:00 [TOOL] Paradox Mods 1.0.1 is public as mod `152153`; PR #2 passed GitGuardian and was squash-merged into `master` as `c67f0ef308ab2cb80e707bfe0867be7080050012`. The public Paradox page and merged PR both verify successfully; direct gameplay calibration of the final post-AI packing timing remains the only unautomated check.
 - 2026-07-21T21:08:44+01:00 [TOOL] Paradox Mods version 1.0.1 published successfully from the exact staged package; the public page responds HTTP 200. GitHub PR #2 is mergeable and its GitGuardian check passes; final documentation commit, PR refresh, and merge remain.
 - 2026-07-21T20:46:17+01:00 [TOOL] Supersedes the staged-only portion of the outcome below: the complete post-vehicle-AI front-packing package is installed locally and all eight source/live hashes match. Restart and gameplay confirmation of front-of-zone stopping and forward departure remain.
 - 2026-07-21T20:46:17+01:00 [TOOL] Policy and formatting checks pass; the official 1.6.0f1 Release pipeline succeeds with 0 warnings/errors in 19.87 s. The staged 41,472-byte DLL SHA-256 is `9BD1098364D2E8A351AE6F96AB3505DFD31A4E8A2EA70EB164606714C8FBC9EF`; Cities II is closed, so exact-package deployment and gameplay confirmation remain.
