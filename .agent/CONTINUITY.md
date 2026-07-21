@@ -1,4 +1,5 @@
 [PLANS]
+- 2026-07-21T19:20:00+01:00 [USER] Widen each passenger waiting area across its boarding zone and bias waiting residents toward the front so concurrent buses are easier to reach.
 - 2026-07-21T18:25:00+01:00 [USER] Default overlays to selected-stop-only, add the supplied gameplay/settings media plus a generated icon to a new public Paradox Mods page, consolidate the PR history, then push and merge it.
 - 2026-07-21T18:06:00+01:00 [USER] Superseded the lead-bus model: every bus must always stop at the furthest available forward position that keeps it inside the boarding zone, then board/unboard concurrently.
 - 2026-07-21T18:00:00+01:00 [USER] Confirmed on the deployed `25BE...B7C3` build that the lead still stops at the native marker and following stopped buses do not enter boarding.
@@ -18,6 +19,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-21T19:20:00+01:00 [CODE] Preserve the native sidewalk-side queue sphere and shift only its longitudinal centre per resident; use a stable front-biased distribution across the resolved automatic or custom zone instead of teleporting pedestrians or replacing navigation.
 - 2026-07-21T18:34:00+01:00 [CODE] Change only the native settings default so new installs show the selected stop alone while existing saved preferences remain intact; publish three unique gallery images because two supplied depot files are byte-identical.
 - 2026-07-21T18:06:00+01:00 [CODE] Supersedes the 18:00 lead-fronting decision. Pack every nearby bus front-to-back by physical progress, body length, and gap; use a per-bus approach marker only while a safe same-lane target remains ahead, and fall back to native boarding without blocking when no endpoint can be written.
 - 2026-07-21T18:00:00+01:00 [CODE] Run lead-fronting before admission, mark a successfully redirected lead so admission cannot immediately undo the move, and fall back to the same physical `CarCurrentLane` endpoint only when the zone target is strictly ahead. If neither safe endpoint is writable, preserve native placement and allow admission instead of deadlocking every bus.
@@ -68,6 +70,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-21T19:20:00+01:00 [CODE] Added a post-ResidentAI/pre-HumanNavigation waiting-spread system and pure directional distribution assertions; installed Game.dll IL confirms `HumanCurrentLane.m_QueueArea` is the native queue/navigation input.
 - 2026-07-21T18:51:00+01:00 [TOOL] Player.log confirmed installed game `1.6.0f1`; the official publisher updated mod `152153` to recommended game `1.6.0*`, five unique gallery images, and the GitHub source link without creating a new package version.
 - 2026-07-21T18:44:00+01:00 [TOOL] Published the verified 1.0.0 staged package through the official publisher as public Paradox mod `152153`, after resizing the copied gallery media below the service's 2.1 MB per-image limit.
 - 2026-07-21T18:12:00+01:00 [CODE] Replaced lead-only fronting with travel-order, body-length-aware front-to-back targets for every nearby bus; removed the first-at-front admission gate, added safe same-direction current-lane fallback, and retained native boarding when targeting cannot be written.
@@ -153,6 +156,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-21T19:20:00+01:00 [TOOL] Front-biased waiting-zone assertions pass and the official 1.6.0f1 Release build succeeds with 0 warnings/errors in 17.82 s; managed DLL SHA-256 is `E6646F30141AFADBA87ECB80A307275E36B2DCD731E9C38327BE420D5BA45810`. In-game crowd placement remains to be calibrated.
 - 2026-07-21T18:51:00+01:00 [TOOL] Public Paradox mod `152153` responds HTTP 200 and now reports the corrected 1.6.0 compatibility metadata, five unique screenshots, generated thumbnail, and `https://github.com/Meapy/concurrent-bus-boarding`. GitHub history consolidation/push/merge remain.
 - 2026-07-21T18:44:00+01:00 [TOOL] Paradox Mods accepted public version 1.0.0 as mod `152153` with generated thumbnail, concurrent-boarding gameplay, pull-in queue, and selected-stop setting media. The published 39,936-byte managed DLL SHA-256 is `883CD4A619D626ED16E8643FF82F6239299EFE862BA0EBD2BCB5B466BBD579B1`; GitHub history consolidation/push/merge remain.
 - 2026-07-21T18:20:11+01:00 [TOOL] The generalized per-bus packing package is installed locally while Cities II is closed. All eight live files match the staged hashes; the managed DLL is 39,936 bytes with SHA-256 `1482F6F9E1DE916338CAF7E2F80B2C5BCFE9D1DD05E5F498E9FA45E9DE218B1D`. Gameplay confirmation remains.

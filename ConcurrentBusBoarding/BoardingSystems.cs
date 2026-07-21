@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Colossal.Mathematics;
 using Game;
 using Game.Common;
+using Game.Creatures;
 using Game.Net;
 using Game.Objects;
 using Game.Prefabs;
@@ -17,6 +18,7 @@ using NetCarLaneFlags = Game.Net.CarLaneFlags;
 using NetSecondaryLane = Game.Net.SecondaryLane;
 using NetSlaveLane = Game.Net.SlaveLane;
 using NetSlaveLaneFlags = Game.Net.SlaveLaneFlags;
+using CreatureResident = Game.Creatures.Resident;
 using VehiclePublicTransport = Game.Vehicles.PublicTransport;
 
 namespace ConcurrentBusBoarding
@@ -484,6 +486,66 @@ namespace ConcurrentBusBoarding
             if (!groups.TryGetValue(stop, out List<Entity> list))
                 groups.Add(stop, list = new List<Entity>());
             list.Add(bus);
+        }
+    }
+
+    [UpdateAfter(typeof(ResidentAISystem))]
+    [UpdateBefore(typeof(HumanNavigationSystem))]
+    public partial class PassengerWaitingSpreadSystem : GameSystemBase
+    {
+        private EntityQuery m_Residents;
+        private BoardingZoneRenderSystem m_ZoneRenderSystem;
+
+        public override int GetUpdateInterval(SystemUpdatePhase phase) => 16;
+
+        [Preserve]
+        protected override void OnCreate()
+        {
+            base.OnCreate();
+            m_Residents = GetEntityQuery(
+                ComponentType.ReadOnly<CreatureResident>(),
+                ComponentType.ReadOnly<PrefabRef>(),
+                ComponentType.ReadWrite<HumanCurrentLane>());
+            m_ZoneRenderSystem = World.GetOrCreateSystemManaged<BoardingZoneRenderSystem>();
+            RequireForUpdate(m_Residents);
+        }
+
+        [Preserve]
+        protected override void OnUpdate()
+        {
+            // ponytail: a 16-frame main-thread scan avoids a new persistent passenger index; move this to a
+            // Burst job plus a stop-zone map only if profiling shows resident count makes it significant.
+            using NativeArray<Entity> residents = m_Residents.ToEntityArray(Allocator.Temp);
+            foreach (Entity entity in residents)
+            {
+                CreatureResident resident = EntityManager.GetComponentData<CreatureResident>(entity);
+                if ((resident.m_Flags & ResidentFlags.WaitingTransport) == 0)
+                    continue;
+
+                HumanCurrentLane currentLane = EntityManager.GetComponentData<HumanCurrentLane>(entity);
+                Entity stop = currentLane.m_QueueEntity;
+                if (!BoardingHelpers.IsPassengerBusStop(EntityManager, stop) ||
+                    !m_ZoneRenderSystem.TryGetObservedZone(stop, out BoardingZone zone) ||
+                    !EntityManager.HasComponent<Transform>(stop))
+                    continue;
+
+                Entity prefab = EntityManager.GetComponentData<PrefabRef>(entity).m_Prefab;
+                if (!EntityManager.HasComponent<ObjectGeometryData>(prefab))
+                    continue;
+
+                float2 bounds = BoardingHelpers.GetZoneBounds(zone);
+                uint hash = math.hash(new uint2((uint)entity.Index, (uint)entity.Version));
+                float unit = (hash & 65535u) / 65535f;
+                float progress = BoardingPolicy.WaitingPosition(bounds.x, bounds.y, zone.Direction, unit);
+                float3 stopOnRoad = MathUtils.Position(zone.Curve.m_Bezier, zone.CurvePosition);
+                float3 waitingOnRoad = MathUtils.Position(zone.Curve.m_Bezier, progress);
+                Transform stopTransform = EntityManager.GetComponentData<Transform>(stop);
+                Sphere3 queueArea = CreatureUtils.GetQueueArea(
+                    EntityManager.GetComponentData<ObjectGeometryData>(prefab), stopTransform.m_Position);
+                queueArea.position += waitingOnRoad - stopOnRoad;
+                currentLane.m_QueueArea = queueArea;
+                EntityManager.SetComponentData(entity, currentLane);
+            }
         }
     }
 

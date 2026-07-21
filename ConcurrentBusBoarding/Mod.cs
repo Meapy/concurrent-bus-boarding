@@ -32,6 +32,8 @@ namespace ConcurrentBusBoarding
             updateSystem.UpdateBefore<BoardingZoneApproachSystem, ConcurrentBoardingSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateBefore<BoardingZoneApproachSystem, TransportCarAISystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAfter<PassengerDistributionSystem, TransportCarAISystem>(SystemUpdatePhase.GameSimulation);
+            updateSystem.UpdateAfter<PassengerWaitingSpreadSystem, ResidentAISystem>(SystemUpdatePhase.GameSimulation);
+            updateSystem.UpdateBefore<PassengerWaitingSpreadSystem, HumanNavigationSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAfter<BoardingHoldSystem, CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAt<BoardingZoneToolSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAt<BoardingZoneRenderSystem>(SystemUpdatePhase.Rendering);
