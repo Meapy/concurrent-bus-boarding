@@ -30,9 +30,9 @@ Only passenger buses are changed. Other public transport and cargo vehicles keep
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.0.0" />
+	<ModVersion Value="1.0.1" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Initial public release. Adds simultaneous bus boarding and unloading, automatic front-to-back packing, generic pull-in-bay detection, editable per-stop boarding zones, and selected-stop-only overlay display by default." />
+	<ChangeLog Value="Improves front-to-back bus positioning, spreads waiting passengers along the boarding zone, and fixes buses reversing after boarding. Front packing now uses the native final navigation endpoint after vehicle route setup while leaving live lane occupancy unchanged." />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />
 </Publish>
