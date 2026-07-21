@@ -12,5 +12,5 @@ This is a managed Cities: Skylines II code mod. Keep the implementation small an
 ## Checks
 
 - Run `powershell -ExecutionPolicy Bypass -File scripts/test-policy.ps1` for the dependency-free policy check.
+- Run `npm ci` and `npm test` in `ConcurrentBusBoarding.UI` for the production UI bundle and smoke check (or use its Dockerfile).
 - Run `dotnet build ConcurrentBusBoarding.slnx -c Release` against the installed game before release.
-

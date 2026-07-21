@@ -12,12 +12,25 @@
     <Reference Include="Colossal.Core"><Private>false</Private></Reference>
     <Reference Include="Colossal.IO.AssetDatabase"><Private>false</Private></Reference>
     <Reference Include="Colossal.Logging"><Private>false</Private></Reference>
+    <Reference Include="Colossal.Localization"><Private>false</Private></Reference>
     <Reference Include="Colossal.Mathematics"><Private>false</Private></Reference>
+    <Reference Include="Colossal.UI"><Private>false</Private></Reference>
+    <Reference Include="Colossal.UI.Binding"><Private>false</Private></Reference>
     <Reference Include="Unity.Collections"><Private>false</Private></Reference>
     <Reference Include="Unity.Entities"><Private>false</Private></Reference>
+    <Reference Include="Unity.InputSystem"><Private>false</Private></Reference>
     <Reference Include="Unity.Mathematics"><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><Private>false</Private></Reference>
   </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.mjs') And Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.css')">
+    <Content Include="..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.mjs" Link="ConcurrentBusBoarding.mjs" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.css" Link="ConcurrentBusBoarding.css" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="CheckReleaseUIBundle" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Release'">
+    <Error Condition="!Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.mjs') Or !Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.css')" Text="Release requires the UI bundle. Run npm test in ConcurrentBusBoarding.UI first." />
+  </Target>
 
   <ItemGroup>
     <Reference Update="System"><Private>false</Private></Reference>
@@ -29,4 +42,3 @@
     <None Include="$(ModTargetsFile)" Link="Properties\Mod.targets" />
   </ItemGroup>
 </Project>
-
