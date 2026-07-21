@@ -1,4 +1,5 @@
 [PLANS]
+- 2026-07-21T20:46:17+01:00 [USER] Reported that the no-reverse package regressed bus placement to the native stop marker instead of the front of the boarding zone.
 - 2026-07-21T20:15:00+01:00 [USER] Reported another backward departure after restarting Cities II; supplied Bluejay Street evidence.
 - 2026-07-21T19:45:00+01:00 [USER] Fix buses reversing toward the stop after boarding; departure must continue from the physical position where boarding finished.
 - 2026-07-21T19:20:00+01:00 [USER] Widen each passenger waiting area across its boarding zone and bias waiting residents toward the front so concurrent buses are easier to reach.
@@ -21,6 +22,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-21T20:46:17+01:00 [CODE] Run front-packing immediately after `TransportCarAISystem` creates or refreshes the real final `EndOfPath`, but before `CarNavigationSystem` consumes it. Continue forbidding all writes to live `CarCurrentLane` occupancy.
 - 2026-07-21T19:45:00+01:00 [CODE] Delete the `CarCurrentLane.m_CurvePosition.z` packing fallback because that field is live physical occupancy, not a navigation destination. Pack only through a real same-lane `EndOfPath`; otherwise retain vanilla placement and boarding eligibility.
 - 2026-07-21T19:20:00+01:00 [CODE] Preserve the native sidewalk-side queue sphere and shift only its longitudinal centre per resident; use a stable front-biased distribution across the resolved automatic or custom zone instead of teleporting pedestrians or replacing navigation.
 - 2026-07-21T18:34:00+01:00 [CODE] Change only the native settings default so new installs show the selected stop alone while existing saved preferences remain intact; publish three unique gallery images because two supplied depot files are byte-identical.
@@ -73,6 +75,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-21T20:46:17+01:00 [CODE] Moved only `BoardingZoneApproachSystem` from pre-vehicle-AI to post-vehicle-AI/pre-navigation; concurrent admission remains before vehicle AI, and the safe same-lane `EndOfPath` guard is unchanged.
 - 2026-07-21T20:02:00+01:00 [CODE] Removed the current-lane packing fallback and updated behavior/handover documentation; buses without a safe native end-of-path now retain vanilla placement and remain boarding-eligible.
 - 2026-07-21T19:20:00+01:00 [CODE] Added a post-ResidentAI/pre-HumanNavigation waiting-spread system and pure directional distribution assertions; installed Game.dll IL confirms `HumanCurrentLane.m_QueueArea` is the native queue/navigation input.
 - 2026-07-21T18:51:00+01:00 [TOOL] Player.log confirmed installed game `1.6.0f1`; the official publisher updated mod `152153` to recommended game `1.6.0*`, five unique gallery images, and the GitHub source link without creating a new package version.
@@ -162,6 +165,8 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-21T20:46:17+01:00 [TOOL] Supersedes the staged-only portion of the outcome below: the complete post-vehicle-AI front-packing package is installed locally and all eight source/live hashes match. Restart and gameplay confirmation of front-of-zone stopping and forward departure remain.
+- 2026-07-21T20:46:17+01:00 [TOOL] Policy and formatting checks pass; the official 1.6.0f1 Release pipeline succeeds with 0 warnings/errors in 19.87 s. The staged 41,472-byte DLL SHA-256 is `9BD1098364D2E8A351AE6F96AB3505DFD31A4E8A2EA70EB164606714C8FBC9EF`; Cities II is closed, so exact-package deployment and gameplay confirmation remain.
 - 2026-07-21T20:23:09+01:00 [TOOL] Supersedes the 20:15 deployment blocker: after the user closed Cities II, the complete departure-fix package was installed locally and all eight source/live SHA-256 hashes matched. The managed DLL is 41,472 bytes with SHA-256 `AC33E1C6688B9CC5DAD0677513AE7374AABC13EDDE0AFA23940CF105283BAAA1`; restart and gameplay confirmation that buses depart forward remain.
 - 2026-07-21T20:15:00+01:00 [TOOL] No further code change is supported yet: deployment of the already-verified `AC33...AAA1` package is blocked only by the running game process. Close Cities II, install the complete staged package, restart, then repeat the departure test.
 - 2026-07-21T20:02:00+01:00 [TOOL] Departure fix passes policy, whitespace, and diff checks plus the official 1.6.0f1 Release build with 0 warnings/errors in 48.93 s. The staged 41,472-byte DLL SHA-256 is `AC33E1C6688B9CC5DAD0677513AE7374AABC13EDDE0AFA23940CF105283BAAA1`; Cities II is running with the prior `E664...5810` DLL, so deployment/restart and gameplay confirmation remain.

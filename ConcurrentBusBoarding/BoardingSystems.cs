@@ -232,8 +232,8 @@ namespace ConcurrentBusBoarding
         }
     }
 
-    [UpdateBefore(typeof(ConcurrentBoardingSystem))]
-    [UpdateBefore(typeof(TransportCarAISystem))]
+    [UpdateAfter(typeof(TransportCarAISystem))]
+    [UpdateBefore(typeof(CarNavigationSystem))]
     public partial class BoardingZoneApproachSystem : GameSystemBase
     {
         private EntityQuery m_Buses;
