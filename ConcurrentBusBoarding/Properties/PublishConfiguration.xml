@@ -33,7 +33,7 @@ Only passenger buses are changed. Other public transport and cargo vehicles keep
 	<ModVersion Value="1.1.0" />
 	<GameVersion Value="1.6.0*" />
 	<ChangeLog Value="Adds stable simultaneous boarding for buses queued behind one another. Boarding buses remain stopped until their own passenger work finishes, then continue directly to the next stop. Boarding zones now extend rearward from the fixed stop position, support connected lane segments, and correctly retain detected pull-in lanes. Release diagnostics have been removed." />
+	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
-	<ExternalLink Type="forum" Url="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<AccessLevel Value="Public" />
 </Publish>

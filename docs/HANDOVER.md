@@ -2,7 +2,7 @@
 
 ## Release candidate
 
-Version 1.1.0 is the tested concurrent-boarding implementation for Cities: Skylines II 1.6.0.
+Version 1.1.0 is the published concurrent-boarding implementation for Cities: Skylines II 1.6.0.
 
 > Diagnostic v6 was deployed with all eight hashes matching, and the user confirmed the corrected boarding and route
 > panel behavior works properly. Version 1.1.0 is approved for release as a clean non-diagnostic build.
@@ -62,16 +62,15 @@ Version 1.1.0 is the tested concurrent-boarding implementation for Cities: Skyli
 - The clean package DLL SHA-256 is `F87D520F03528C667640EB503587012B2613783A12223A13E1C241F6087B0E3C`;
   Mono.Cecil verification finds zero calls to `CrashBreadcrumbs` outside the retained diagnostic class itself.
 - Support and feedback thread: https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/
+- Paradox Mod Publisher requires the dedicated `ForumLink` element; a generic `ExternalLink Type="forum"` is ignored.
+- GitHub PR #3 was squash-merged as `1c688d3`; Paradox Mods accepted version 1.1.0 and its metadata-only
+  `ForumLink` correction. The public mod page returns HTTP 200.
 - Publish the exact verified staged package with `ModPublisher.exe NewVersion` and verify Paradox mod `152153` reports
   version 1.1.0, compatibility `1.6.0*`, all five screenshots, and the GitHub source link.
 
 ## Release procedure
 
-1. Run the policy, UI, formatting, and official managed Release checks.
-2. Completed: all eight staged hashes are recorded, and the standard build has zero external `CrashBreadcrumbs` calls.
-3. Push the single release PR, wait for required checks, and squash-merge it into `master`.
-4. Publish the exact staged folder as Paradox Mods version 1.1.0.
-5. Verify the public page and leave the repository clean on updated `master`.
+Release procedure completed on 2026-07-22. The only follow-up commit is the publisher-specific `ForumLink` correction.
 
 ## Next work
 
