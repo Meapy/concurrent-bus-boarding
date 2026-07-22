@@ -15,8 +15,6 @@ namespace ConcurrentBusBoarding
 
         private Entity m_EditingStop;
         private int m_DragHandle;
-        private float2 m_InitialBounds;
-        private float m_InitialMousePosition;
         private float m_DragPlaneHeight;
 
         public override string toolID => "Concurrent Bus Boarding Zone Tool";
@@ -65,56 +63,35 @@ namespace ConcurrentBusBoarding
                 return inputDeps;
             }
 
-            float2 bounds = BoardingHelpers.GetZoneBounds(zone);
             Vector2 pointer = mouse.position.ReadValue();
             if (mouse.leftButton.wasPressedThisFrame)
-                BeginDrag(camera, pointer, zone, bounds);
+                BeginDrag(camera, pointer, zone);
 
-            if (m_DragHandle != 0 && mouse.leftButton.isPressed && TryGetCurvePosition(camera, pointer, zone, out float position))
-                UpdateZone(zone, position);
+            if (m_DragHandle != 0 && mouse.leftButton.isPressed &&
+                TryGetPointerWorld(camera, pointer, out float3 world) &&
+                BoardingHelpers.TryGetDistanceFromFront(zone, world, out float length))
+                UpdateZone(length);
 
             if (mouse.leftButton.wasReleasedThisFrame)
                 m_DragHandle = 0;
             return inputDeps;
         }
 
-        private void BeginDrag(Camera camera, Vector2 pointer, BoardingZone zone, float2 bounds)
+        private void BeginDrag(Camera camera, Vector2 pointer, BoardingZone zone)
         {
-            float startDistance = EndHandleDistance(camera, pointer, zone, bounds.x);
-            float endDistance = EndHandleDistance(camera, pointer, zone, bounds.y);
-            float centerPosition = math.csum(bounds) * 0.5f;
-            float centerDistance = ScreenDistance(camera, pointer, MathUtils.Position(zone.Curve.m_Bezier, centerPosition));
-            float nearest = math.min(centerDistance, math.min(startDistance, endDistance));
-            if (nearest > HandleRadiusPixels)
+            if (!BoardingHelpers.TryGetRearEdge(zone, out BoardingZonePiece piece, out float2 bounds))
+                return;
+            float rear = piece.Direction >= 0 ? bounds.x : bounds.y;
+            if (EndHandleDistance(camera, pointer, piece, rear) > HandleRadiusPixels)
                 return;
 
-            m_DragHandle = nearest == centerDistance ? 3 : nearest == startDistance ? 1 : 2;
-            m_InitialBounds = bounds;
-            m_DragPlaneHeight = MathUtils.Position(zone.Curve.m_Bezier,
-                m_DragHandle == 1 ? bounds.x : m_DragHandle == 2 ? bounds.y : centerPosition).y;
-            TryGetCurvePosition(camera, pointer, zone, out m_InitialMousePosition);
+            m_DragHandle = 1;
+            m_DragPlaneHeight = MathUtils.Position(piece.Curve.m_Bezier, rear).y;
         }
 
-        private void UpdateZone(BoardingZone zone, float mousePosition)
+        private void UpdateZone(float length)
         {
-            float minimumRange = BoardingPolicy.MinimumCustomZoneLength / math.max(1f, zone.Curve.m_Length);
-            float2 bounds = m_InitialBounds;
-            if (m_DragHandle == 1)
-                bounds.x = math.clamp(mousePosition, 0f, bounds.y - minimumRange);
-            else if (m_DragHandle == 2)
-                bounds.y = math.clamp(mousePosition, bounds.x + minimumRange, 1f);
-            else
-            {
-                float range = bounds.y - bounds.x;
-                float start = math.clamp(bounds.x + mousePosition - m_InitialMousePosition, 0f, 1f - range);
-                bounds = new float2(start, start + range);
-            }
-
-            float center = math.csum(bounds) * 0.5f;
-            float offset = (center - zone.CurvePosition) * zone.Curve.m_Length * zone.Direction;
-            float length = (bounds.y - bounds.x) * zone.Curve.m_Length;
-            BoardingZoneOverride custom = new BoardingZoneOverride(
-                math.clamp(offset, -BoardingPolicy.MaximumCustomZoneOffset, BoardingPolicy.MaximumCustomZoneOffset),
+            BoardingZoneOverride custom = new BoardingZoneOverride(0f,
                 math.clamp(length, BoardingPolicy.MinimumCustomZoneLength, BoardingPolicy.MaximumCustomZoneLength));
             if (EntityManager.HasComponent<BoardingZoneOverride>(m_EditingStop))
                 EntityManager.SetComponentData(m_EditingStop, custom);
@@ -122,26 +99,26 @@ namespace ConcurrentBusBoarding
                 EntityManager.AddComponentData(m_EditingStop, custom);
         }
 
-        private bool TryGetCurvePosition(Camera camera, Vector2 pointer, BoardingZone zone, out float curvePosition)
+        private bool TryGetPointerWorld(Camera camera, Vector2 pointer, out float3 world)
         {
             Ray ray = camera.ScreenPointToRay(pointer);
             Plane plane = new Plane(Vector3.up, new Vector3(0f, m_DragPlaneHeight, 0f));
             if (!plane.Raycast(ray, out float distance))
             {
-                curvePosition = 0f;
+                world = default;
                 return false;
             }
-            MathUtils.Distance(zone.Curve.m_Bezier, (float3)ray.GetPoint(distance), out curvePosition);
+            world = (float3)ray.GetPoint(distance);
             return true;
         }
 
-        private static float EndHandleDistance(Camera camera, Vector2 pointer, BoardingZone zone, float curvePosition)
+        private static float EndHandleDistance(Camera camera, Vector2 pointer, BoardingZonePiece piece, float curvePosition)
         {
-            float3 position = MathUtils.Position(zone.Curve.m_Bezier, curvePosition);
+            float3 position = MathUtils.Position(piece.Curve.m_Bezier, curvePosition);
             float nearby = curvePosition < 0.99f ? curvePosition + 0.01f : curvePosition - 0.01f;
-            float3 tangent = math.normalizesafe(MathUtils.Position(zone.Curve.m_Bezier, nearby) - position, new float3(0f, 0f, 1f));
+            float3 tangent = math.normalizesafe(MathUtils.Position(piece.Curve.m_Bezier, nearby) - position, new float3(0f, 0f, 1f));
             float3 side = math.normalizesafe(math.cross(new float3(0f, 1f, 0f), tangent), new float3(1f, 0f, 0f));
-            float halfWidth = math.max(1.5f, zone.Width * 0.5f);
+            float halfWidth = math.max(1.5f, piece.Width * 0.5f);
             return math.min(ScreenDistance(camera, pointer, position + side * halfWidth),
                 ScreenDistance(camera, pointer, position - side * halfWidth));
         }

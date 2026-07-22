@@ -7,10 +7,10 @@ namespace ConcurrentBusBoarding
         internal const float OrdinaryZoneLength = 26f;
         internal const float BoardingPositionTolerance = 2f;
         internal const float BoardingSpeedTolerance = 1f;
+        internal const float BoardingHeadingTolerance = 0.9f;
         internal const float PhysicalLaneCaptureDistance = 40f;
         internal const float MinimumCustomZoneLength = 6f;
         internal const float MaximumCustomZoneLength = 200f;
-        internal const float MaximumCustomZoneOffset = 100f;
 
         internal static bool IsPullInLane(bool secondaryLane, bool splitsFromRoad, bool mergesIntoRoad,
             bool sameRoadLaneTransition)
@@ -39,11 +39,6 @@ namespace ConcurrentBusBoarding
             return occupiedLength + candidateLength + activeBusCount * BusGap <= zoneLength;
         }
 
-        internal static bool IsReady(bool closeToStop, float speed)
-        {
-            return closeToStop && speed <= BoardingSpeedTolerance;
-        }
-
         internal static float PackedTarget(float start, float end, float laneLength, int direction,
             float usedLength, float vehicleLength)
         {
@@ -56,6 +51,21 @@ namespace ConcurrentBusBoarding
         internal static bool IsAhead(float progress, float target, float laneLength, int direction)
         {
             return (target - progress) * direction * laneLength > BoardingPositionTolerance;
+        }
+
+        internal static bool CanProjectTarget(float distance, float maximumDistance, float tangentDot)
+        {
+            return distance <= maximumDistance && tangentDot >= 0.5f;
+        }
+
+        internal static bool IsSettledAtPackedPosition(bool approaching, float progress, float target,
+            float laneLength, float speed, float headingDot)
+        {
+            float distance = (progress - target) * laneLength;
+            if (distance < 0f)
+                distance = -distance;
+            return approaching && distance <= BoardingPositionTolerance &&
+                speed <= BoardingSpeedTolerance && headingDot >= BoardingHeadingTolerance;
         }
 
         internal static bool ShouldDrawZone(bool selectedOnly, bool selected, bool editing)
@@ -85,29 +95,15 @@ namespace ConcurrentBusBoarding
             int direction, bool customZone, float customOffset, float customLength,
             out float start, out float end)
         {
-            if (customZone)
+            if (laneLength <= 0f)
             {
-                if (laneLength <= 0f)
-                {
-                    start = stopPosition;
-                    end = stopPosition;
-                    return;
-                }
-                float normalizedCenter = stopPosition + direction * customOffset / laneLength;
-                float halfRange = customLength * 0.5f / laneLength;
-                start = normalizedCenter - halfRange > 0f ? normalizedCenter - halfRange : 0f;
-                end = normalizedCenter + halfRange < 1f ? normalizedCenter + halfRange : 1f;
+                start = stopPosition;
+                end = stopPosition;
                 return;
             }
 
-            if (pullInLane)
-            {
-                start = 0f;
-                end = 1f;
-                return;
-            }
-
-            float range = laneLength > OrdinaryZoneLength ? OrdinaryZoneLength / laneLength : 1f;
+            float length = customZone ? customLength : pullInLane ? laneLength : OrdinaryZoneLength;
+            float range = length < laneLength ? length / laneLength : 1f;
             if (direction >= 0)
             {
                 start = stopPosition > range ? stopPosition - range : 0f;
@@ -123,6 +119,12 @@ namespace ConcurrentBusBoarding
         internal static int RotationIndex(int count, uint turn, uint salt)
         {
             return count <= 1 ? 0 : (int)((turn + salt) % (uint)count);
+        }
+
+        internal static bool CanFinishBoarding(uint frame, uint departureFrame, float maxBoardingDistance,
+            bool passengersReady)
+        {
+            return frame >= departureFrame && maxBoardingDistance == float.MaxValue && passengersReady;
         }
 
         private static float Clamp(float value, float min, float max)

@@ -2,6 +2,7 @@
   <PropertyGroup>
     <Configurations>Debug;Release</Configurations>
     <CSIIToolPath Condition="'$(CSIIToolPath)' == ''">$([System.Environment]::GetEnvironmentVariable('CSII_TOOLPATH', 'EnvironmentVariableTarget.User'))</CSIIToolPath>
+    <DefineConstants Condition="'$(CbbDiagnostics)' == 'true'">$(DefineConstants);CBB_DIAGNOSTICS</DefineConstants>
   </PropertyGroup>
 
   <Import Project="$(CSIIToolPath)\Mod.props" />
