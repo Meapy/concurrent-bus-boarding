@@ -11,6 +11,7 @@ assert.match(moduleText, /resetZone/);
 assert.match(moduleText, /toggleZoneEditing/);
 assert.match(moduleText, /Edit on map/);
 assert.match(moduleText, /Right-click or Esc/);
+assert.match(moduleText, /Cyan rear corners resize/);
 assert.match(moduleText, /Game\.UI\.InGame\.LinesSection/);
 assert.ok(cssText.length > 0, "zone editor CSS should be emitted");
 console.log("Zone editor UI smoke check passed.");

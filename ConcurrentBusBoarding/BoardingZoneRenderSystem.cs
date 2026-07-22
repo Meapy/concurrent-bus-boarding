@@ -21,7 +21,6 @@ namespace ConcurrentBusBoarding
         private static readonly UnityColor PullInColor = new UnityColor(0.05f, 0.55f, 1f, 0.42f);
         private static readonly UnityColor OrdinaryColor = new UnityColor(0.15f, 0.55f, 0.95f, 0.28f);
         private static readonly UnityColor HandleColor = new UnityColor(0.1f, 0.85f, 1f, 0.95f);
-        private static readonly UnityColor MoveHandleColor = new UnityColor(1f, 1f, 1f, 0.95f);
 
         private EntityQuery m_Buses;
         private OverlayRenderSystem m_Overlay;
@@ -59,7 +58,6 @@ namespace ConcurrentBusBoarding
                 foreach (KeyValuePair<Entity, BoardingZone> entry in observed)
                 {
                     if (!m_Zones.TryGetValue(entry.Key, out BoardingZone existing) ||
-                        !EntityManager.Exists(existing.Lane) ||
                         BoardingPolicy.PreferZoneCandidate(existing.StopDistance, existing.IsPullIn, existing.IsPhysical,
                             entry.Value.StopDistance, entry.Value.IsPullIn, entry.Value.IsPhysical))
                         m_Zones[entry.Key] = entry.Value;
@@ -71,39 +69,49 @@ namespace ConcurrentBusBoarding
             if (selectedStop != Entity.Null)
                 TryGetObservedZone(selectedStop, out _);
             bool selectedOnly = Mod.Settings != null && Mod.Settings.OnlyShowSelectedStop;
-            foreach (KeyValuePair<Entity, BoardingZone> entry in m_Zones)
+            if (selectedOnly)
             {
-                BoardingZone zone = entry.Value;
-                if (!BoardingPolicy.ShouldDrawZone(selectedOnly, entry.Key == selectedStop,
-                    entry.Key == m_ZoneTool.EditingStop))
-                    continue;
-                if (!EntityManager.Exists(entry.Key) || !EntityManager.HasComponent<Game.Routes.BoardingVehicle>(entry.Key) ||
-                    !EntityManager.Exists(zone.Lane))
-                    continue;
-                BoardingHelpers.ApplyOverride(EntityManager, entry.Key, ref zone);
-
-                float2 bounds = BoardingHelpers.GetZoneBounds(zone);
-                Bezier4x3 visibleZone = MathUtils.Cut(zone.Curve.m_Bezier, bounds);
-                buffer.DrawCurve(zone.IsPullIn && !zone.IsCustom ? PullInColor : OrdinaryColor, visibleZone, zone.Width);
-                if (m_ZoneTool.EditingStop == entry.Key)
-                    DrawHandles(buffer, zone, bounds);
+                DrawZone(buffer, selectedStop);
+                if (m_ZoneTool.EditingStop != selectedStop)
+                    DrawZone(buffer, m_ZoneTool.EditingStop);
+                return;
             }
+            foreach (KeyValuePair<Entity, BoardingZone> entry in m_Zones)
+                DrawZone(buffer, entry.Key);
         }
 
-        private static void DrawHandles(OverlayRenderSystem.Buffer buffer, BoardingZone zone, float2 bounds)
+        private void DrawZone(OverlayRenderSystem.Buffer buffer, Entity stop)
         {
-            DrawEndHandles(buffer, zone, bounds.x);
-            DrawEndHandles(buffer, zone, bounds.y);
-            buffer.DrawCircle(MoveHandleColor, MathUtils.Position(zone.Curve.m_Bezier, math.csum(bounds) * 0.5f), 2.2f);
+            if (stop == Entity.Null || !m_Zones.TryGetValue(stop, out BoardingZone zone) ||
+                !EntityManager.Exists(stop) || !EntityManager.HasComponent<Game.Routes.BoardingVehicle>(stop) ||
+                !EntityManager.Exists(zone.Lane))
+                return;
+            BoardingHelpers.ApplyOverride(EntityManager, stop, ref zone);
+
+            UnityColor color = zone.IsPullIn && !zone.IsCustom ? PullInColor : OrdinaryColor;
+            float remaining = BoardingHelpers.GetRequestedZoneLength(zone);
+            if (zone.Pieces == null)
+                return;
+            foreach (BoardingZonePiece piece in zone.Pieces)
+            {
+                float2 bounds = BoardingHelpers.TrimFromFront(piece, remaining);
+                buffer.DrawCurve(color, MathUtils.Cut(piece.Curve.m_Bezier, bounds), piece.Width);
+                remaining -= BoardingHelpers.PieceLength(piece);
+                if (remaining <= 0f)
+                    break;
+            }
+            if (m_ZoneTool.EditingStop == stop &&
+                BoardingHelpers.TryGetRearEdge(zone, out BoardingZonePiece rearPiece, out float2 rearBounds))
+                DrawEndHandles(buffer, rearPiece, rearPiece.Direction >= 0 ? rearBounds.x : rearBounds.y);
         }
 
-        private static void DrawEndHandles(OverlayRenderSystem.Buffer buffer, BoardingZone zone, float curvePosition)
+        private static void DrawEndHandles(OverlayRenderSystem.Buffer buffer, BoardingZonePiece piece, float curvePosition)
         {
-            float3 position = MathUtils.Position(zone.Curve.m_Bezier, curvePosition);
+            float3 position = MathUtils.Position(piece.Curve.m_Bezier, curvePosition);
             float nearby = curvePosition < 0.99f ? curvePosition + 0.01f : curvePosition - 0.01f;
-            float3 tangent = math.normalizesafe(MathUtils.Position(zone.Curve.m_Bezier, nearby) - position, new float3(0f, 0f, 1f));
+            float3 tangent = math.normalizesafe(MathUtils.Position(piece.Curve.m_Bezier, nearby) - position, new float3(0f, 0f, 1f));
             float3 side = math.normalizesafe(math.cross(new float3(0f, 1f, 0f), tangent), new float3(1f, 0f, 0f));
-            float halfWidth = math.max(1.5f, zone.Width * 0.5f);
+            float halfWidth = math.max(1.5f, piece.Width * 0.5f);
             buffer.DrawCircle(HandleColor, position + side * halfWidth, 1.8f);
             buffer.DrawCircle(HandleColor, position - side * halfWidth, 1.8f);
         }

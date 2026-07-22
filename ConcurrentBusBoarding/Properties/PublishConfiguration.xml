@@ -3,21 +3,21 @@
 	<DisplayName Value="Concurrent Bus Boarding" />
 	<ShortDescription Value="Let multiple buses board and unload together at the same stop, with automatic and editable boarding zones." />
 	<LongDescription>
-Concurrent Bus Boarding lets several buses use the same stop at the same time when there is enough road space. Buses pack from the front of the boarding zone backwards, board and unload concurrently, then continue to their next stop when finished.
+Concurrent Bus Boarding lets several buses use the same stop at the same time when there is enough road space. The stop is the forward edge of the boarding zone, buses queue naturally behind it, board and unload concurrently, then continue to their next stop when finished.
 
 FEATURES
 
 - Up to two buses board together at ordinary curbside stops.
 - Pull-in bays use their full detected lane and fit as many buses as their usable length allows.
-- Buses are packed front-to-back without reversing, overlapping, or moving again after boarding starts.
+- Buses keep their natural traffic spacing and remain stopped once boarding starts, even when the bus ahead leaves.
 - Waiting passengers are offered to active buses in round-robin order while the game keeps its normal route, fare, animation, and capacity checks.
-- Every served bus stop has position and length controls, plus draggable map handles for moving or resizing its boarding zone.
+- Every served bus stop has a length control plus draggable rear-edge map handles for resizing its boarding zone.
 - Per-stop edits save with the city and can be reset to automatic detection at any time.
 - Boarding-zone overlays show only for the selected stop by default; this can be changed in Options.
 
 HOW TO EDIT A STOP
 
-Select a served bus stop and open Bus Boarding Zone. Use Position and Length for precise adjustments, or choose Edit on map and drag the white centre handle or cyan end handles. Right-click or press Escape when finished.
+Select a served bus stop and open Bus Boarding Zone. Use Length for precise adjustment, or choose Edit on map and drag either cyan rear corner. The stop remains the fixed forward edge. Right-click or press Escape when finished.
 
 SCOPE AND COMPATIBILITY
 
@@ -30,9 +30,10 @@ Only passenger buses are changed. Other public transport and cargo vehicles keep
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.0.1" />
+	<ModVersion Value="1.1.0" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Improves front-to-back bus positioning, spreads waiting passengers along the boarding zone, and fixes buses reversing after boarding. Front packing now uses the native final navigation endpoint after vehicle route setup while leaving live lane occupancy unchanged." />
+	<ChangeLog Value="Adds stable simultaneous boarding for buses queued behind one another. Boarding buses remain stopped until their own passenger work finishes, then continue directly to the next stop. Boarding zones now extend rearward from the fixed stop position, support connected lane segments, and correctly retain detected pull-in lanes. Release diagnostics have been removed." />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
+	<ExternalLink Type="forum" Url="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<AccessLevel Value="Public" />
 </Publish>

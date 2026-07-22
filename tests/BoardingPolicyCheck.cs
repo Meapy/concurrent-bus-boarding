@@ -21,9 +21,6 @@ internal static class BoardingPolicyCheck
         Expect(!BoardingPolicy.CanAdmit(false, true, 2, 28, 12, 40, true), "pull-in insufficient length");
         Expect(BoardingPolicy.CanAdmit(true, false, 20, 200, 12, 20, true), "custom zone admits every contained bus");
         Expect(!BoardingPolicy.CanAdmit(true, false, 0, 0, 12, 20, false), "custom zone still requires containment");
-        Expect(BoardingPolicy.IsReady(true, 1f), "close and settling");
-        Expect(!BoardingPolicy.IsReady(false, 0f), "not close to stop");
-        Expect(!BoardingPolicy.IsReady(true, 1.01f), "moving bus");
         Expect(Near(BoardingPolicy.PackedTarget(0.2f, 0.8f, 100f, 1, 0f, 12f), 0.74f),
             "increasing first packed target");
         Expect(Near(BoardingPolicy.PackedTarget(0.2f, 0.8f, 100f, 1, 13.5f, 12f), 0.605f),
@@ -33,6 +30,19 @@ internal static class BoardingPolicyCheck
         Expect(BoardingPolicy.IsAhead(0.5f, 0.74f, 100f, 1), "increasing target is ahead");
         Expect(BoardingPolicy.IsAhead(0.5f, 0.26f, 100f, -1), "decreasing target is ahead");
         Expect(!BoardingPolicy.IsAhead(0.75f, 0.74f, 100f, 1), "never reverse to packed target");
+        Expect(BoardingPolicy.CanProjectTarget(3f, 5f, 0.9f), "near aligned navigation lane");
+        Expect(!BoardingPolicy.CanProjectTarget(6f, 5f, 0.9f), "distant navigation lane");
+        Expect(!BoardingPolicy.CanProjectTarget(3f, 5f, 0.49f), "misaligned navigation lane");
+        Expect(BoardingPolicy.IsSettledAtPackedPosition(true, 0.49f, 0.5f, 100f, 1f, 0.9f),
+            "stopped aligned approach settles at packed target");
+        Expect(!BoardingPolicy.IsSettledAtPackedPosition(true, 0.47f, 0.5f, 100f, 0f, 1f),
+            "distant approach cannot settle");
+        Expect(!BoardingPolicy.IsSettledAtPackedPosition(true, 0.5f, 0.5f, 100f, 1.01f, 1f),
+            "moving approach cannot settle");
+        Expect(!BoardingPolicy.IsSettledAtPackedPosition(true, 0.5f, 0.5f, 100f, 0f, 0.89f),
+            "misaligned approach cannot settle");
+        Expect(!BoardingPolicy.IsSettledAtPackedPosition(false, 0.5f, 0.5f, 100f, 0f, 1f),
+            "unassigned bus cannot settle");
         Expect(BoardingPolicy.ShouldDrawZone(false, false, false), "show all overlay mode");
         Expect(!BoardingPolicy.ShouldDrawZone(true, false, false), "hide unselected overlay");
         Expect(BoardingPolicy.ShouldDrawZone(true, true, false), "show selected overlay");
@@ -57,13 +67,19 @@ internal static class BoardingPolicyCheck
         BoardingPolicy.GetZoneBounds(false, 0.25f, 100f, -1, false, 0f, 0f, out start, out end);
         Expect(Near(start, 0.25f) && Near(end, 0.51f), "decreasing lane extends behind stop");
         BoardingPolicy.GetZoneBounds(true, 0.5f, 100f, 1, false, 0f, 0f, out start, out end);
-        Expect(start == 0f && end == 1f, "pull-in uses full lane");
+        Expect(start == 0f && Near(end, 0.5f), "pull-in ends at increasing-direction stop");
         BoardingPolicy.GetZoneBounds(false, 0.5f, 100f, 1, true, -10f, 40f, out start, out end);
-        Expect(Near(start, 0.2f) && Near(end, 0.6f), "custom zone moves and sizes around its centre");
+        Expect(Near(start, 0.1f) && Near(end, 0.5f), "custom zone ignores legacy offset and ends at stop");
+        BoardingPolicy.GetZoneBounds(false, 0.5f, 100f, -1, true, 10f, 40f, out start, out end);
+        Expect(Near(start, 0.5f) && Near(end, 0.9f), "decreasing custom zone ends at stop");
         BoardingPolicy.GetZoneBounds(false, 0.5f, 0f, 1, true, 0f, 40f, out start, out end);
         Expect(start == 0.5f && end == 0.5f, "invalid custom lane has no boarding area");
         Expect(BoardingPolicy.RotationIndex(3, 0, 0) == 0, "rotation start");
         Expect(BoardingPolicy.RotationIndex(3, 1, 0) == 1, "rotation advance");
+        Expect(!BoardingPolicy.CanFinishBoarding(99, 100, float.MaxValue, true), "boarding dwell must finish");
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, true), "waiting passengers must finish");
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false), "onboard transitions must finish");
+        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, true), "completed follower can leave");
         int[] split = new int[3];
         for (uint turn = 0; turn < 10; turn++)
             split[BoardingPolicy.RotationIndex(split.Length, turn, 0)]++;

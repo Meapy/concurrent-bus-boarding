@@ -1,68 +1,84 @@
 # Handover
 
-## State
+## Release candidate
 
-The mod includes a per-stop boarding-zone editor, native map editing, front-to-back bus packing, a zero-speed hold for concurrent boarding, and passenger waiting areas spread along each boarding zone. Version 1.0.0 is published on Paradox Mods as mod `152153`; the default overlay preference now shows only the selected stop. The passenger-spread change is staged locally for the next release and is not yet published.
+Version 1.1.0 is the tested concurrent-boarding implementation for Cities: Skylines II 1.6.0.
 
-## Behaviour
+> Diagnostic v6 was deployed with all eight hashes matching, and the user confirmed the corrected boarding and route
+> panel behavior works properly. Version 1.1.0 is approved for release as a clean non-diagnostic build.
 
-- `ConcurrentBoardingSystem` runs immediately before `TransportCarAISystem` on its native 16-frame cadence. It observes buses naturally approaching the same passenger stop; it does not rewrite navigation endpoints, stop targets, current-lane positions, or testing state for buses that are not admitted.
-- Admission requires the bus centre to project into the local lane zone and speed to be at most 1.0 m/s. Ordinary stops then admit up to two buses without applying calculated body-length capacity; native traffic AI has already established their physical spacing. Pull-in bays retain aggregate length capacity. A 2 m lane-projection tolerance handles curves and normal settling offsets.
-- Each admitted bus receives the non-serialized `ConcurrentBoardingActive` component. New admissions are changed to `EnRoute | Boarding`; `Testing` and `RequireStop` are cleared, and the native boarding-distance fields plus a minimum 64-frame dwell are initialized once.
-- Native `TransportCarAISystem.StopBoarding` keeps only the bus equal to `BoardingVehicle.m_Vehicle` in `Boarding`; it clears that flag from every other bus. Immediately before vehicle AI, the mod therefore selects one marked bus for the native slot and temporarily clears `Boarding` on the other marked buses. Selection rotates every native tick so every admitted bus gets normal dwell/departure processing.
-- The active component records which bus was selected for the current native vehicle tick and preserves that evidence until completion is observed. Immediately after vehicle AI, `PassengerDistributionSystem` observes the exact native `EndBoarding` transition (`Boarding` cleared and stop slot released), removes that bus's component, and does not restore its status. Speed and later zone edits cannot remove an admitted marker; every remaining active bus is restored to `EnRoute | Boarding` before the resident-facing pointer rotates and remains held until native completion.
-- Ordinary stops admit at most two stopped, nearby buses. Custom coach length no longer blocks the second bus after native traffic AI has safely stopped both vehicles.
-- `BoardingZoneEditorUISystem` exposes a selected bus stop through the `ConcurrentBusBoarding.zoneEditor` binding. The frontend wraps the stop-facing `LinesSection` (not the vehicle-only `PassengersSection`). For a served but unobserved stop, the renderer now resolves its `ConnectedRoute` waypoint immediately and exposes metre-step sliders for zone-centre offset (-100 m to +100 m) and total length (6 m to 200 m), plus **Use automatic**. A nearby bus can later replace that inferred lane with its proven physical driven lane. Negative offset is behind the native stop marker; positive is forward in travel direction.
-- **Edit on map** focuses the camera on the captured stop, then activates `BoardingZoneToolSystem`. The selected-info panel closes as part of the native tool change, but the captured stop now remains active instead of cancelling itself. Four cyan corner handles resize the start or end of the lane-following zone, while the white centre handle moves the complete zone. Dragging writes the same offset/length override as the sliders, so display, admission, and save data remain one source of truth. Right-click or Escape returns to the default tool.
-- Each edit adds or updates a save-serializable `BoardingZoneOverride` component on that stop. The component contains only offset and length, so the physical lane continues to be resolved from the live network rather than storing a fragile lane entity. Resetting removes the component. Overrides therefore survive city save/load while adapting to rebuilt lane entities.
-- A customized zone is authoritative for new admissions. Automatic pull-in classification, pull-in body-length capacity, and the ordinary two-bus cap no longer apply to that stop: every stopped bus whose centre projects inside the visible custom zone is admitted and participates in the existing native-slot/passenger round-robin. An edit does not interrupt a bus already boarding.
-- Road geometry uses a nearby physical observation before inference. When a bus targeting the stop is within 40 m of the waypoint, its `CarCurrentLane` becomes authoritative; otherwise the resolver compares route endpoints and uses the final navigation lane only as fallback. The render cache retains a valid physical observation over later inferred ones. This separates opposing pull-in bays on the same road and prevents a distant junction or perpendicular driveway from replacing the stop road. Stops remain filtered through `TransportStopData` to passenger buses only; the pedestrian `AccessLane` is never rendered.
-- Pull-in detection is generic across the resolved physical lane and both route endpoint lanes. Native `SecondaryLane`/secondary car-lane metadata identifies purpose-built bays. A route whose distinct start/end lanes have the same `Owner` identifies an inset lane transition within one road edge; this is the native topology exposed by the pictured Butler Street bay. Otherwise, combined `SlaveLaneFlags` must show both a split and a merge. Cross-edge intersection transitions, generic start/end lanes, and one-sided splits or merges remain excluded. A pull-in uses the full physical curve, with capacity calculated from bus body lengths plus 1.5 m gaps.
-- `BoardingZoneApproachSystem` runs on the native 16-frame transport cadence immediately after vehicle AI and before car navigation. Vehicle AI first creates or refreshes the real final `EndOfPath` entry; the approach pass then sorts every nearby bus by physical progress and assigns distinct front-to-back centres in travel order using each vehicle's body length plus a 1.5 m gap.
-- A target is written only when it is strictly ahead on the same resolved physical lane and the bus has a real final `EndOfPath` navigation entry. `CarCurrentLane.m_CurvePosition` is live physical occupancy, not a destination, and is never rewritten. The system never changes transforms or rotations and never sends a bus backward. A short-lived approach marker prevents boarding from cancelling a successful forward move; it is removed at the assigned position. If no safe navigation endpoint is available, no marker is added and native placement remains eligible for boarding rather than corrupting its departure path.
-- `BoardingHoldSystem` runs after `CarNavigationSystem` and before `CarMoveSystem`. For buses carrying `ConcurrentBoardingActive`, it sets the already-calculated maximum speed and current linear/angular velocity to zero. The former speed-based cleanup has been removed because it could drop the marker before this hold ran. An admitted bus therefore remains stopped through the complete native boarding session; native completion removes the marker before navigation, so it immediately follows its next waypoint instead of moving up within the old stop.
-- `PassengerDistributionSystem` runs every simulation frame after `TransportCarAISystem` and before `ResidentAISystem`. It rotates the stop's vanilla boarding pointer among marked buses, so successive resident update batches select buses round-robin.
-- `PassengerWaitingSpreadSystem` runs after `ResidentAISystem` and before `HumanNavigationSystem`. Native `SetQueuePosition` gives every waiting resident the same stop-centred `HumanCurrentLane.m_QueueArea`; the mod rebuilds that native sidewalk-side sphere and shifts only its longitudinal anchor along the resolved boarding curve. A stable entity hash spreads residents across the full zone with a quadratic bias toward the travel-direction front. The native lateral offset, pedestrian navigation, collision handling, and boarding action remain unchanged.
-- `ResidentAISystem` copies the currently selected vehicle into its native boarding action. The game therefore continues to enforce route compatibility and seat capacity and continues to own fares, animations, waiting statistics, and passenger buffers. Household groups and buses on different routes can make final headcounts differ slightly even though selection turns are even.
-- `BoardingZoneRenderSystem` draws projected blue curves over observed physical bus lanes only. Every stop is drawn independently, even when multiple stops share one lane. Pull-in bays use the full resolved secondary lane. At ordinary stops, the waypoint is the front edge and the 26 m zone extends backward against travel direction. A custom zone is cut from the same physical curve using its saved centre offset and length. A stop's resolved lane is cached after a bus approaches it, and observations are refreshed roughly once per second.
-- `ConcurrentBusBoardingSettings` uses the native global mod-settings store. **Only show the selected stop** defaults on for new installs; existing saved preferences remain unchanged. The renderer hides unselected cached zones while preserving the selected stop and any stop currently open in map editing. This preference does not alter admission or saved per-stop geometry.
+- The native stop position is the fixed forward edge of every boarding zone. Ordinary zones extend 26 m backward;
+  edited zones extend 6–200 m backward; automatic pull-ins use their usable physical lane behind the stop.
+- Zone geometry follows connected inbound `RouteSegment`/`PathElement` lane pieces, so long custom zones can cross
+  ordinary segment and junction boundaries without moving onto a nearby main road or driveway.
+- The closest observed physical bus lane remains authoritative over inferred geometry. This keeps paired pull-in stops
+  on their respective bays.
+- Native traffic controls bus movement, direction, collision spacing, current-lane occupancy, navigation buffers,
+  transforms, and rotation. The registered systems never reposition a bus or rewrite its navigation endpoint.
+- A stopped bus whose centre is inside the zone can enter managed boarding. Ordinary automatic stops admit two buses;
+  pull-ins use vehicle-length capacity; custom zones admit every contained stopped bus.
+- Active buses share the stop's native `BoardingVehicle` pointer round-robin so waiting residents can choose each bus
+  while the game retains route, fare, capacity, animation, and passenger-buffer behavior.
+- Each admitted bus is physically held at its own queue position. The bus ahead leaving cannot pull it forward.
+- Concurrent admission requires the bus's native `CurrentRoute`, rejecting line-detached or orphaned save vehicles.
+  The managed latch retains the route, and a bounded post-stop handoff restores a one-time removal after the latch ends
+  so the vehicle Line row and route panel remain available without overriding a later genuine route change.
+- A follower completes only after the native dwell time, waiting-distance sweep, and every onboard passenger transition
+  are ready. It then clears its managed boarding state and targets the next route waypoint. Synthetic sessions must not
+  enqueue native `EndBoarding`, because they never enqueue the matching native `BeginBoarding` record.
+- **Only show the selected stop** defaults on. Selecting a served stop exposes the rearward zone length and **Edit on
+  map**; either cyan rear corner resizes the saved zone while the stop-side edge remains fixed.
+- Crash breadcrumb source remains available for local diagnosis. Calls are compiled only when the build passes
+  `-p:CbbDiagnostics=true`; ordinary Release and Paradox publishing builds omit them and have no breadcrumb file I/O.
 
-## Verification completed
+## Verification
 
-- `scripts/test-policy.ps1`: passes secondary, same-road transition, and branch-and-rejoin pull-in classification, ordinary proximity/cap admission, pull-in length capacity, unlimited contained custom-zone admission, custom offset/length bounds, stopped-speed readiness, directional bounds, front-biased passenger waiting positions, and round-robin assertions.
-- UI production bundle and smoke check: passes, including bindings/triggers, the stop-facing lines-section extension, map-editing activation, and emitted CSS.
-- Official Release build: succeeds with 0 warnings and 0 errors, including ECS/Jobs post-processing and Windows/macOS/Linux bundle generation.
-- Latest staged Release pipeline wall time: 19.87 s. This is a build-machine timing, not an in-game frame-time measurement.
-- Managed DLL: 41,472 bytes, SHA-256 `9BD1098364D2E8A351AE6F96AB3505DFD31A4E8A2EA70EB164606714C8FBC9EF`.
-- UI module: 3,257 bytes, SHA-256 `58891FD1F264995CDA5D9BCFF905984AC427F7F43DAD797BA4D3610CE982E76E`.
-- Cities II is closed. The post-vehicle-AI front-packing package under `artifacts/front-pack-post-ai` is installed locally with all eight hashes matching; gameplay confirmation remains. The UI bundle is unchanged.
-- The public Paradox package is version 1.0.1, mod ID `152153`, compatible with game version `1.6.0*`. Its managed DLL is 41,472 bytes with SHA-256 `9BD1098364D2E8A351AE6F96AB3505DFD31A4E8A2EA70EB164606714C8FBC9EF`. The public metadata contains five unique screenshots and the GitHub source link.
-- Installed `Game.dll` IL was rechecked: `StopBoarding` compares the bus with the stop's one native vehicle pointer, clears `Boarding` for a non-owner, and sends a completed owner through the next-dispatch/waypoint path in the same tick.
-- `dotnet format whitespace --verify-no-changes`: no changes required.
-- `git diff --check`: clean.
+- User gameplay confirmation: simultaneous boarding, stable stopped followers, passenger exchange, and clean departure
+  all behave correctly.
+- Live diagnostic candidate: the initial same-stop pair and many later followers completed independently, with active
+  hold counts falling rather than accumulating.
+- Preserved crash evidence: `artifacts/crash-20260722-202916` ends after a successful managed admission boundary,
+  missing regional-prefab warnings, and asset cleanup. The final breadcrumb does not establish crash causality.
+- The paired v3 trace in `artifacts/crash-20260722-210157` narrows the failure to native AI immediately after managed
+  admission of a saved low-index vehicle; the same fatal boundary reports unresolved
+  `CarPrefab:StarQ Bus03AsPublicTransport`. Admission now matches the native transport-car component exclusions and
+  requires `PrefabSystem.TryGetPrefab<CarPrefab>` to succeed before changing boarding state.
+- `artifacts/crash-20260722-212117` shows that the prefab guard was not sufficient: the saved bus passed resolution,
+  later admissions also completed, and the process still ended in an empty-stack native Mono crash. The remaining
+  unpaired `BoardingData.EndBoarding` job has therefore been removed; the next diagnostic run is the release gate.
+- `artifacts/crash-20260722-214523` is a different failure signature: the native stack is Coherent UI/V8 immediately
+  after `[BetterTransitView] Button rendering...`, with a `UnityLogger` null reference. The paired CBB trace ended about
+  ten seconds earlier. Diagnostic v5 also preserves `CurrentRoute`, which the native vehicle UI requires for the Line
+  row and route panel.
+- `artifacts/crash-20260722-221352` returns to the empty-stack native Mono signature. Its v5 trace again ends immediately
+  after admitting saved bus `268079:1`, followed by an unresolved `CarPrefab:StarQ Bus03AsPublicTransport` warning.
+  V6 requires `CurrentRoute` at admission and carries the route across the native `Boarding` to `En route` transition.
+- `powershell -ExecutionPolicy Bypass -File scripts/test-policy.ps1` passes.
+- `dotnet format ConcurrentBusBoarding.slnx whitespace --verify-no-changes --no-restore` passes.
+- Diagnostic v6 builds with the official toolchain into `artifacts/diagnostic-v6` with 0 warnings and 0 errors; managed
+  DLL SHA-256 is `09CB676AE9A0E068386E1EFA4DDA1F62781FDEE4262BD98773A7496DA6507729`.
+- The UI production bundle and smoke check pass with webpack 5.97.1.
+- The clean non-diagnostic package builds into `artifacts/release-1.1.0-final` with 0 warnings and 0 errors.
+- The clean package DLL SHA-256 is `F87D520F03528C667640EB503587012B2613783A12223A13E1C241F6087B0E3C`;
+  Mono.Cecil verification finds zero calls to `CrashBreadcrumbs` outside the retained diagnostic class itself.
+- Support and feedback thread: https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/
+- Publish the exact verified staged package with `ModPublisher.exe NewVersion` and verify Paradox mod `152153` reports
+  version 1.1.0, compatibility `1.6.0*`, all five screenshots, and the GitHub source link.
 
-## Still requires gameplay calibration
+## Release procedure
 
-The installed game assemblies establish the integration points, but an automated game simulation harness is not available. Restart the game to load this corrected DLL, then verify:
+1. Run the policy, UI, formatting, and official managed Release checks.
+2. Completed: all eight staged hashes are recorded, and the standard build has zero external `CrashBreadcrumbs` calls.
+3. Push the single release PR, wait for required checks, and squash-merge it into `master`.
+4. Publish the exact staged folder as Paradox Mods version 1.1.0.
+5. Verify the public page and leave the repository clean on updated `master`.
 
-1. buses receive distinct front-to-back positions that keep their bodies inside a pull-in or edited zone;
-2. once a bus shows `Boarding`, it remains completely stopped until its boarding session finishes, even when space opens ahead;
-3. a finished bus immediately proceeds to the next stop instead of moving up within the old zone;
-4. following buses occupy the rear space and board concurrently while capacity remains;
-5. two buses board together at an ordinary stop and a third waits;
-6. passengers continue entering each active bus while the native slot rotates.
-7. enabling **Only show the selected stop** hides unselected overlays, selecting a stop reveals its zone, and map editing keeps it visible after the info panel closes.
-8. selecting a served stop before any bus visits immediately exposes the Position, Length, and Edit on map controls instead of the waiting preview.
-9. waiting passengers spread along the sidewalk beside the complete boarding zone, remain concentrated toward its forward end, and can walk to buses boarding farther behind.
-10. every finished bus continues forward from its boarding position without reversing toward the native stop marker.
+## Next work
 
-After completing the live copy and restarting, confirm that any first and second bus stopped within the ordinary rear zone both show `Boarding`, passengers enter/leave both, and the status clears as each departs.
+Re-run the gameplay calibration after each Cities: Skylines II update that changes `Game.dll`. Do not restore direct
+`CarCurrentLane`, `CarNavigationLane`, transform, or rotation writes for front packing; the tested release deliberately
+uses native traffic spacing.
 
-## Best next work
-
-1. Launch Cities II and confirm waiting passengers redistribute along both an automatic and a customized zone without entering the road or nearby properties.
-2. Confirm three arriving buses take distinct front-to-back positions without turning around and enter boarding together when stopped, with passengers able to reach every active bus.
-3. Confirm paired opposing pull-in stops each retain the overlay on their own physical bay.
-4. Select a served bus stop and confirm **Edit on map** focuses its road, its cyan corners resize it, its white centre moves it, and the resulting values persist after save/reload.
-5. Confirm **Use automatic** restores the ordinary two-bus/26 m rule or full detected pull-in rule.
-6. Confirm Butler Street remains on its inset lane and Ashridge Street remains on the driven road rather than the perpendicular driveway.
+For a local crash investigation, build with
+`dotnet build ConcurrentBusBoarding.slnx -c Release -p:CbbDiagnostics=true`. The diagnostic package writes the bounded,
+auto-flushed `Logs/ConcurrentBusBoarding-breadcrumbs.log`; never pass that property to the Paradox publishing build.

@@ -18,6 +18,8 @@ namespace ConcurrentBusBoarding
 
         public void OnLoad(UpdateSystem updateSystem)
         {
+            CrashBreadcrumbs.Start();
+            CrashBreadcrumbs.Write("mod-onload before-settings");
             Log.Info(nameof(OnLoad));
             if (GameManager.instance.modManager.TryGetExecutableAsset(this, out var asset))
                 Log.Info($"Current mod asset at {asset.path}");
@@ -27,27 +29,28 @@ namespace ConcurrentBusBoarding
             GameManager.instance.localizationManager.AddSource("en-US", new SettingsLocale(Settings));
             AssetDatabase.global.LoadSettings("ConcurrentBusBoarding", Settings,
                 new ConcurrentBusBoardingSettings(this));
-
+            CrashBreadcrumbs.Write("mod-onload after-settings");
+            // ponytail: no approach/front-position or passenger-spread system; native traffic owns movement.
             updateSystem.UpdateBefore<ConcurrentBoardingSystem, TransportCarAISystem>(SystemUpdatePhase.GameSimulation);
-            updateSystem.UpdateAfter<BoardingZoneApproachSystem, TransportCarAISystem>(SystemUpdatePhase.GameSimulation);
-            updateSystem.UpdateBefore<BoardingZoneApproachSystem, CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
+            updateSystem.UpdateAfter<RouteHandoffSystem, TransportCarAISystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAfter<PassengerDistributionSystem, TransportCarAISystem>(SystemUpdatePhase.GameSimulation);
-            updateSystem.UpdateAfter<PassengerWaitingSpreadSystem, ResidentAISystem>(SystemUpdatePhase.GameSimulation);
-            updateSystem.UpdateBefore<PassengerWaitingSpreadSystem, HumanNavigationSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAfter<BoardingHoldSystem, CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAt<BoardingZoneToolSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAt<BoardingZoneRenderSystem>(SystemUpdatePhase.Rendering);
             updateSystem.UpdateAt<BoardingZoneEditorUISystem>(SystemUpdatePhase.UIUpdate);
+            CrashBreadcrumbs.Write("mod-onload rear-zone-boarding-systems-registered");
         }
 
         public void OnDispose()
         {
+            CrashBreadcrumbs.Write("mod-dispose");
             Log.Info(nameof(OnDispose));
             if (Settings != null)
             {
                 Settings.UnregisterInOptionsUI();
                 Settings = null;
             }
+            CrashBreadcrumbs.Stop();
         }
     }
 }

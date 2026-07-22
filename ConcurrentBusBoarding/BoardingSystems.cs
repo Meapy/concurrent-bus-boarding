@@ -5,6 +5,7 @@ using Game.Common;
 using Game.Creatures;
 using Game.Net;
 using Game.Objects;
+using Game.Pathfind;
 using Game.Prefabs;
 using Game.Routes;
 using Game.Simulation;
@@ -36,14 +37,36 @@ namespace ConcurrentBusBoarding
         internal float CustomLength;
         internal float StopDistance;
         internal bool IsPhysical;
+        internal List<BoardingZonePiece> Pieces;
+    }
+
+    internal struct BoardingZonePiece
+    {
+        internal Entity Lane;
+        internal Curve Curve;
+        internal float2 Bounds;
+        internal float Width;
+        internal int Direction;
     }
 
     internal struct ConcurrentBoardingActive : IComponentData
     {
+        internal Entity Stop;
+        internal Entity Route;
         internal byte SelectedForVehicleAi;
     }
 
+    internal struct ConcurrentRouteHandoff : IComponentData
+    {
+        internal Entity Route;
+        internal uint ExpiresFrame;
+    }
+
     internal struct BoardingZoneApproach : IComponentData
+    {
+    }
+
+    internal struct BoardingZoneFallback : IComponentData
     {
     }
 
@@ -59,6 +82,7 @@ namespace ConcurrentBusBoarding
         private EntityQuery m_Buses;
         private EntityQuery m_Stops;
         private SimulationSystem m_SimulationSystem;
+        private PrefabSystem m_PrefabSystem;
         private uint m_Turn;
 
         public override int GetUpdateInterval(SystemUpdatePhase phase) => 16;
@@ -71,10 +95,22 @@ namespace ConcurrentBusBoarding
             m_Buses = GetEntityQuery(
                 ComponentType.ReadOnly<VehiclePublicTransport>(),
                 ComponentType.ReadOnly<PrefabRef>(),
+                ComponentType.ReadOnly<Owner>(),
                 ComponentType.ReadOnly<Target>(),
-                ComponentType.ReadOnly<Transform>());
-            m_Stops = GetEntityQuery(ComponentType.ReadWrite<BoardingVehicle>());
+                ComponentType.ReadOnly<PathOwner>(),
+                ComponentType.ReadOnly<CarCurrentLane>(),
+                ComponentType.ReadOnly<CurrentRoute>(),
+                ComponentType.ReadOnly<Transform>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>(),
+                ComponentType.Exclude<TripSource>(),
+                ComponentType.Exclude<OutOfControl>());
+            m_Stops = GetEntityQuery(
+                ComponentType.ReadWrite<BoardingVehicle>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
             m_SimulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>();
+            m_PrefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>();
             RequireForUpdate(m_Buses);
             RequireForUpdate(m_Stops);
         }
@@ -84,13 +120,20 @@ namespace ConcurrentBusBoarding
         {
             var busesByStop = new Dictionary<Entity, List<Entity>>();
             var zones = new Dictionary<Entity, BoardingZone>();
-
             using (NativeArray<Entity> buses = m_Buses.ToEntityArray(Allocator.Temp))
             {
                 foreach (Entity bus in buses)
                 {
                     if (!BoardingHelpers.IsBus(EntityManager, bus))
                         continue;
+                    if (!BoardingHelpers.HasLoadedCarPrefab(EntityManager, m_PrefabSystem, bus,
+                            out Entity vehiclePrefab))
+                    {
+                        CrashBreadcrumbs.Write($"boarding-skip unresolved-prefab bus={CrashBreadcrumbs.Id(bus)} prefab={CrashBreadcrumbs.Id(vehiclePrefab)}");
+                        if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus))
+                            EntityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
+                        continue;
+                    }
 
                     bool managed = EntityManager.HasComponent<ConcurrentBoardingActive>(bus);
                     if (!BoardingHelpers.TryGetStop(EntityManager, bus, out Entity stop))
@@ -136,6 +179,7 @@ namespace ConcurrentBusBoarding
                         EntityManager.HasComponent<BoardingZoneApproach>(bus))
                         continue;
                     VehiclePublicTransport transport = EntityManager.GetComponentData<VehiclePublicTransport>(bus);
+
                     if ((transport.m_State & PublicTransportFlags.Boarding) == 0)
                         continue;
 
@@ -147,7 +191,11 @@ namespace ConcurrentBusBoarding
                         candidateLength, BoardingHelpers.GetZoneLength(zone), closeToStop))
                         continue;
 
-                    EntityManager.AddComponent<ConcurrentBoardingActive>(bus);
+                    EntityManager.AddComponentData(bus, new ConcurrentBoardingActive
+                    {
+                        Stop = stop,
+                        Route = GetCurrentRoute(bus)
+                    });
                     activeBuses.Add(bus);
                     occupiedLength += candidateLength;
                 }
@@ -158,18 +206,20 @@ namespace ConcurrentBusBoarding
                         EntityManager.HasComponent<BoardingZoneApproach>(bus))
                         continue;
 
-                    VehiclePublicTransport transport = EntityManager.GetComponentData<VehiclePublicTransport>(bus);
                     bool closeToStop = hasZone && BoardingHelpers.IsCloseToStop(EntityManager, bus, zone);
                     float speed = BoardingHelpers.GetSpeed(EntityManager, bus);
-                    if (!BoardingPolicy.IsReady(closeToStop, speed))
+                    if (!closeToStop || speed > BoardingPolicy.BoardingSpeedTolerance)
                         continue;
                     float candidateLength = BoardingHelpers.GetVehicleLength(EntityManager, bus);
-                    if (!BoardingPolicy.CanAdmit(zone.IsCustom, pullIn, activeBuses.Count, occupiedLength, candidateLength,
-                        BoardingHelpers.GetZoneLength(zone), closeToStop))
+                    if (!BoardingPolicy.CanAdmit(zone.IsCustom, pullIn, activeBuses.Count, occupiedLength,
+                        candidateLength, BoardingHelpers.GetZoneLength(zone), true))
                         continue;
 
+                    CrashBreadcrumbs.Write($"boarding-begin before bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
                     BeginBoarding(bus);
-                    EntityManager.AddComponent<ConcurrentBoardingActive>(bus);
+                    CrashBreadcrumbs.Write($"boarding-begin state-written bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+                    EntityManager.AddComponentData(bus, new ConcurrentBoardingActive { Stop = stop });
+                    CrashBreadcrumbs.Write($"boarding-begin active-added bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
                     activeBuses.Add(bus);
                     occupiedLength += candidateLength;
                     if (slot.m_Testing == bus)
@@ -184,7 +234,7 @@ namespace ConcurrentBusBoarding
 
                 Entity selected = activeBuses[BoardingPolicy.RotationIndex(activeBuses.Count, m_Turn, (uint)stop.Index)];
                 foreach (Entity bus in activeBuses)
-                    PrepareForVehicleAi(bus, bus == selected);
+                    PrepareForVehicleAi(bus, stop, bus == selected);
 
                 if (slot.m_Vehicle == Entity.Null || BoardingHelpers.IsBus(EntityManager, slot.m_Vehicle))
                     slot.m_Vehicle = selected;
@@ -208,9 +258,10 @@ namespace ConcurrentBusBoarding
             EntityManager.SetComponentData(bus, transport);
         }
 
-        private void PrepareForVehicleAi(Entity bus, bool selected)
+        private void PrepareForVehicleAi(Entity bus, Entity stop, bool selected)
         {
             VehiclePublicTransport transport = EntityManager.GetComponentData<VehiclePublicTransport>(bus);
+            ConcurrentBoardingActive active = EntityManager.GetComponentData<ConcurrentBoardingActive>(bus);
             transport.m_State &= ~(PublicTransportFlags.Testing | PublicTransportFlags.RequireStop);
             transport.m_State |= PublicTransportFlags.EnRoute;
             if (selected)
@@ -220,9 +271,15 @@ namespace ConcurrentBusBoarding
             EntityManager.SetComponentData(bus, transport);
             EntityManager.SetComponentData(bus, new ConcurrentBoardingActive
             {
+                Stop = stop,
+                Route = active.Route != Entity.Null ? active.Route : GetCurrentRoute(bus),
                 SelectedForVehicleAi = selected ? (byte)1 : (byte)0
             });
         }
+
+        private Entity GetCurrentRoute(Entity bus) => EntityManager.HasComponent<CurrentRoute>(bus)
+            ? EntityManager.GetComponentData<CurrentRoute>(bus).m_Route
+            : Entity.Null;
 
         private static void Add(Dictionary<Entity, List<Entity>> groups, Entity stop, Entity bus)
         {
@@ -234,6 +291,7 @@ namespace ConcurrentBusBoarding
 
     [UpdateAfter(typeof(TransportCarAISystem))]
     [UpdateBefore(typeof(CarNavigationSystem))]
+    [UpdateBefore(typeof(PassengerDistributionSystem))]
     public partial class BoardingZoneApproachSystem : GameSystemBase
     {
         private EntityQuery m_Buses;
@@ -249,7 +307,9 @@ namespace ConcurrentBusBoarding
                 ComponentType.ReadOnly<VehiclePublicTransport>(),
                 ComponentType.ReadOnly<PrefabRef>(),
                 ComponentType.ReadOnly<Target>(),
-                ComponentType.ReadOnly<Transform>());
+                ComponentType.ReadOnly<Transform>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
             RequireForUpdate(m_Buses);
         }
 
@@ -265,17 +325,18 @@ namespace ConcurrentBusBoarding
                     if (!BoardingHelpers.IsBus(EntityManager, bus))
                         continue;
                     bool approachingZone = EntityManager.HasComponent<BoardingZoneApproach>(bus);
+                    bool fallbackPlacement = EntityManager.HasComponent<BoardingZoneFallback>(bus);
                     if (!BoardingHelpers.TryGetStop(EntityManager, bus, out Entity stop))
                     {
-                        if (approachingZone)
-                            EntityManager.RemoveComponent<BoardingZoneApproach>(bus);
+                        ClearPlacement(bus);
                         continue;
                     }
                     VehiclePublicTransport transport = EntityManager.GetComponentData<VehiclePublicTransport>(bus);
                     const PublicTransportFlags approaching = PublicTransportFlags.EnRoute |
                         PublicTransportFlags.Arriving | PublicTransportFlags.Testing |
                         PublicTransportFlags.Boarding | PublicTransportFlags.RequireStop;
-                    if (!approachingZone && !EntityManager.HasComponent<ConcurrentBoardingActive>(bus) &&
+                    if (!approachingZone && !fallbackPlacement &&
+                        !EntityManager.HasComponent<ConcurrentBoardingActive>(bus) &&
                         (transport.m_State & approaching) == 0)
                         continue;
                     Add(busesByStop, stop, bus);
@@ -290,7 +351,7 @@ namespace ConcurrentBusBoarding
                     !EntityManager.HasComponent<BoardingVehicle>(stop))
                 {
                     foreach (Entity bus in entry.Value)
-                        ClearApproach(bus);
+                        ClearPlacement(bus);
                     continue;
                 }
 
@@ -299,7 +360,7 @@ namespace ConcurrentBusBoarding
                 {
                     if (!BoardingHelpers.IsCloseToStop(EntityManager, bus, zone))
                     {
-                        ClearApproach(bus);
+                        ClearPlacement(bus);
                         continue;
                     }
                     Transform transform = EntityManager.GetComponentData<Transform>(bus);
@@ -315,84 +376,51 @@ namespace ConcurrentBusBoarding
                     ? right.Progress.CompareTo(left.Progress)
                     : left.Progress.CompareTo(right.Progress));
 
-                float2 bounds = BoardingHelpers.GetZoneBounds(zone);
                 float zoneLength = BoardingHelpers.GetZoneLength(zone);
                 float usedLength = 0f;
                 int accepted = 0;
-                BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
                 foreach (BoardingZoneBus bus in buses)
                 {
                     if (bus.Length <= 0f || usedLength + bus.Length > zoneLength ||
                         (!zone.IsCustom && !zone.IsPullIn && accepted >= BoardingPolicy.OrdinaryStopLimit))
                     {
-                        ClearApproach(bus.Entity);
+                        ClearPlacement(bus.Entity);
                         continue;
                     }
 
                     if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus.Entity))
                     {
-                        ClearApproach(bus.Entity);
+                        ClearPlacement(bus.Entity);
                     }
                     else
                     {
-                        float target = BoardingPolicy.PackedTarget(bounds.x, bounds.y, zone.Curve.m_Length,
-                            zone.Direction, usedLength, bus.Length);
-                        if (BoardingPolicy.IsAhead(bus.Progress, target, zone.Curve.m_Length, zone.Direction) &&
-                            TryMoveTargetForward(bus.Entity, zone, target))
-                        {
-                            if (!EntityManager.HasComponent<BoardingZoneApproach>(bus.Entity))
-                                EntityManager.AddComponent<BoardingZoneApproach>(bus.Entity);
-                            VehiclePublicTransport transport =
-                                EntityManager.GetComponentData<VehiclePublicTransport>(bus.Entity);
-                            transport.m_State &= ~(PublicTransportFlags.Boarding | PublicTransportFlags.Testing |
-                                PublicTransportFlags.RequireStop);
-                            transport.m_State |= PublicTransportFlags.EnRoute;
-                            EntityManager.SetComponentData(bus.Entity, transport);
-                            if (slot.m_Vehicle == bus.Entity)
-                                slot.m_Vehicle = Entity.Null;
-                            if (slot.m_Testing == bus.Entity)
-                                slot.m_Testing = Entity.Null;
-                        }
-                        else
-                        {
-                            ClearApproach(bus.Entity);
-                        }
+                        ClearApproach(bus.Entity);
+                        if (!EntityManager.HasComponent<BoardingZoneFallback>(bus.Entity))
+                            EntityManager.AddComponent<BoardingZoneFallback>(bus.Entity);
                     }
                     usedLength += bus.Length + BoardingPolicy.BusGap;
                     accepted++;
                 }
-                EntityManager.SetComponentData(stop, slot);
             }
-        }
-
-        private bool TryMoveTargetForward(Entity bus, BoardingZone zone, float target)
-        {
-            if (EntityManager.HasBuffer<CarNavigationLane>(bus))
-            {
-                DynamicBuffer<CarNavigationLane> navigation = EntityManager.GetBuffer<CarNavigationLane>(bus);
-                if (navigation.Length > 0)
-                {
-                    int index = navigation.Length - 1;
-                    CarNavigationLane last = navigation[index];
-                    if (last.m_Lane == zone.Lane &&
-                        (last.m_CurvePosition.y >= last.m_CurvePosition.x ? 1 : -1) == zone.Direction &&
-                        (last.m_Flags & Game.Vehicles.CarLaneFlags.EndOfPath) != 0)
-                    {
-                        last.m_CurvePosition.y = target;
-                        last.m_Flags &= ~Game.Vehicles.CarLaneFlags.EndReached;
-                        navigation[index] = last;
-                        return true;
-                    }
-                }
-            }
-
-            return false;
+            CrashBreadcrumbs.Write("approach-cycle after");
         }
 
         private void ClearApproach(Entity bus)
         {
             if (EntityManager.HasComponent<BoardingZoneApproach>(bus))
                 EntityManager.RemoveComponent<BoardingZoneApproach>(bus);
+        }
+
+        private void ClearFallback(Entity bus)
+        {
+            if (EntityManager.HasComponent<BoardingZoneFallback>(bus))
+                EntityManager.RemoveComponent<BoardingZoneFallback>(bus);
+        }
+
+        private void ClearPlacement(Entity bus)
+        {
+            ClearApproach(bus);
+            ClearFallback(bus);
         }
 
         private static void Add(Dictionary<Entity, List<Entity>> groups, Entity stop, Entity bus)
@@ -410,6 +438,7 @@ namespace ConcurrentBusBoarding
     {
         private EntityQuery m_Buses;
         private uint m_Turn;
+        private SimulationSystem m_SimulationSystem;
 
         [Preserve]
         protected override void OnCreate()
@@ -420,7 +449,10 @@ namespace ConcurrentBusBoarding
                 ComponentType.ReadOnly<VehiclePublicTransport>(),
                 ComponentType.ReadOnly<PrefabRef>(),
                 ComponentType.ReadOnly<Target>(),
-                ComponentType.ReadOnly<Transform>());
+                ComponentType.ReadOnly<Transform>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
+            m_SimulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>();
             RequireForUpdate(m_Buses);
         }
 
@@ -432,22 +464,37 @@ namespace ConcurrentBusBoarding
             {
                 foreach (Entity bus in buses)
                 {
+                    ConcurrentBoardingActive active = EntityManager.GetComponentData<ConcurrentBoardingActive>(bus);
+                    EnsureRouteAssociation(bus, active);
                     if (!BoardingHelpers.IsBus(EntityManager, bus) ||
                         !BoardingHelpers.TryGetStop(EntityManager, bus, out Entity stop))
                     {
+                        CrashBreadcrumbs.Write($"active-removed no-stop bus={CrashBreadcrumbs.Id(bus)}");
+                        BeginRouteHandoff(bus, active.Route);
                         EntityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
                         continue;
                     }
 
                     VehiclePublicTransport transport = EntityManager.GetComponentData<VehiclePublicTransport>(bus);
-                    BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
-                    ConcurrentBoardingActive active = EntityManager.GetComponentData<ConcurrentBoardingActive>(bus);
-                    if (active.SelectedForVehicleAi != 0 &&
-                        (transport.m_State & PublicTransportFlags.Boarding) == 0 &&
-                        slot.m_Vehicle != bus)
+                    if (active.Stop != stop)
                     {
+                        CrashBreadcrumbs.Write($"active-complete bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(active.Stop)} next={CrashBreadcrumbs.Id(stop)}");
+                        BeginRouteHandoff(bus, active.Route);
                         EntityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
                         continue;
+                    }
+
+                    if (active.SelectedForVehicleAi != 0)
+                    {
+                        active.SelectedForVehicleAi = 0;
+                        if (TryCompleteBoarding(bus, stop, ref transport))
+                        {
+                            CrashBreadcrumbs.Write($"active-complete follower bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+                            BeginRouteHandoff(bus, active.Route);
+                            EntityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
+                            continue;
+                        }
+                        EntityManager.SetComponentData(bus, active);
                     }
 
                     transport.m_State &= ~(PublicTransportFlags.Testing | PublicTransportFlags.RequireStop);
@@ -472,11 +519,168 @@ namespace ConcurrentBusBoarding
             m_Turn++;
         }
 
+        private void BeginRouteHandoff(Entity bus, Entity route)
+        {
+            if (route == Entity.Null)
+                return;
+
+            var handoff = new ConcurrentRouteHandoff
+            {
+                Route = route,
+                ExpiresFrame = m_SimulationSystem.frameIndex + 512u
+            };
+            if (EntityManager.HasComponent<ConcurrentRouteHandoff>(bus))
+                EntityManager.SetComponentData(bus, handoff);
+            else
+                EntityManager.AddComponentData(bus, handoff);
+        }
+
+        private void EnsureRouteAssociation(Entity bus, ConcurrentBoardingActive active)
+        {
+            if (EntityManager.HasComponent<CurrentRoute>(bus) || active.Route == Entity.Null ||
+                !EntityManager.Exists(active.Route) || !EntityManager.HasBuffer<RouteWaypoint>(active.Route) ||
+                EntityManager.HasComponent<Deleted>(active.Route) ||
+                EntityManager.HasComponent<Game.Tools.Temp>(active.Route))
+                return;
+
+            CrashBreadcrumbs.Write($"route-restored bus={CrashBreadcrumbs.Id(bus)} route={CrashBreadcrumbs.Id(active.Route)}");
+            EntityManager.AddComponentData(bus, new CurrentRoute(active.Route));
+        }
+
+        private bool TryCompleteBoarding(Entity bus, Entity stop, ref VehiclePublicTransport transport)
+        {
+            uint frame = m_SimulationSystem.frameIndex;
+            bool timedOut = transport.m_DepartureFrame != 0 &&
+                frame >= transport.m_DepartureFrame + 1800u;
+            transport.m_MaxBoardingDistance = transport.m_MinWaitingDistance == float.MaxValue ||
+                transport.m_MinWaitingDistance == 0f || timedOut
+                ? float.MaxValue
+                : transport.m_MinWaitingDistance + 1f;
+            transport.m_MinWaitingDistance = float.MaxValue;
+
+            if (!BoardingPolicy.CanFinishBoarding(frame, transport.m_DepartureFrame,
+                    transport.m_MaxBoardingDistance, ArePassengersReady(bus)) ||
+                !TryAdvanceToNextWaypoint(bus))
+                return false;
+
+            transport.m_State &= ~(PublicTransportFlags.Arriving | PublicTransportFlags.Boarding |
+                PublicTransportFlags.Testing | PublicTransportFlags.RequireStop);
+            transport.m_State |= PublicTransportFlags.EnRoute;
+            EntityManager.SetComponentData(bus, transport);
+
+            BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
+            if (slot.m_Vehicle == bus)
+            {
+                slot.m_Vehicle = Entity.Null;
+                EntityManager.SetComponentData(stop, slot);
+            }
+            return true;
+        }
+
+        private bool ArePassengersReady(Entity bus)
+        {
+            if (!EntityManager.HasBuffer<Passenger>(bus))
+                return true;
+            DynamicBuffer<Passenger> passengers = EntityManager.GetBuffer<Passenger>(bus, true);
+            foreach (Passenger passenger in passengers)
+            {
+                if (EntityManager.HasComponent<CurrentVehicle>(passenger.m_Passenger) &&
+                    (EntityManager.GetComponentData<CurrentVehicle>(passenger.m_Passenger).m_Flags &
+                        CreatureVehicleFlags.Ready) == 0)
+                    return false;
+            }
+            return true;
+        }
+
+        private bool TryAdvanceToNextWaypoint(Entity bus)
+        {
+            if (!EntityManager.HasComponent<CurrentRoute>(bus) ||
+                !EntityManager.HasComponent<PathOwner>(bus) ||
+                !EntityManager.HasComponent<Target>(bus))
+                return false;
+
+            CurrentRoute currentRoute = EntityManager.GetComponentData<CurrentRoute>(bus);
+            PathOwner pathOwner = EntityManager.GetComponentData<PathOwner>(bus);
+            Target target = EntityManager.GetComponentData<Target>(bus);
+            if (!EntityManager.HasComponent<Waypoint>(target.m_Target) ||
+                currentRoute.m_Route == Entity.Null || !EntityManager.HasBuffer<RouteWaypoint>(currentRoute.m_Route))
+                return false;
+            Waypoint waypoint = EntityManager.GetComponentData<Waypoint>(target.m_Target);
+
+            DynamicBuffer<RouteWaypoint> waypoints = EntityManager.GetBuffer<RouteWaypoint>(currentRoute.m_Route, true);
+            if (waypoints.Length == 0 || waypoint.m_Index < 0 || waypoint.m_Index >= waypoints.Length)
+                return false;
+
+            Entity oldWaypoint = target.m_Target;
+            Entity nextWaypoint = waypoints[(waypoint.m_Index + 1) % waypoints.Length].m_Waypoint;
+            if (nextWaypoint == Entity.Null || nextWaypoint == oldWaypoint)
+                return false;
+
+            CrashBreadcrumbs.Write($"completion-target before bus={CrashBreadcrumbs.Id(bus)} old={CrashBreadcrumbs.Id(oldWaypoint)} next={CrashBreadcrumbs.Id(nextWaypoint)}");
+            VehicleUtils.SetTarget(ref pathOwner, ref target, nextWaypoint);
+            EntityManager.SetComponentData(bus, pathOwner);
+            EntityManager.SetComponentData(bus, target);
+            CrashBreadcrumbs.Write($"completion-target after bus={CrashBreadcrumbs.Id(bus)} next={CrashBreadcrumbs.Id(nextWaypoint)}");
+            return true;
+        }
+
         private static void Add(Dictionary<Entity, List<Entity>> groups, Entity stop, Entity bus)
         {
             if (!groups.TryGetValue(stop, out List<Entity> list))
                 groups.Add(stop, list = new List<Entity>());
             list.Add(bus);
+        }
+    }
+
+    [UpdateAfter(typeof(TransportCarAISystem))]
+    [UpdateBefore(typeof(PassengerDistributionSystem))]
+    public partial class RouteHandoffSystem : GameSystemBase
+    {
+        private EntityQuery m_Buses;
+        private SimulationSystem m_SimulationSystem;
+
+        public override int GetUpdateInterval(SystemUpdatePhase phase) => 16;
+
+        public override int GetUpdateOffset(SystemUpdatePhase phase) => 1;
+
+        [Preserve]
+        protected override void OnCreate()
+        {
+            base.OnCreate();
+            m_Buses = GetEntityQuery(
+                ComponentType.ReadWrite<ConcurrentRouteHandoff>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
+            m_SimulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>();
+            RequireForUpdate(m_Buses);
+        }
+
+        [Preserve]
+        protected override void OnUpdate()
+        {
+            using NativeArray<Entity> buses = m_Buses.ToEntityArray(Allocator.Temp);
+            foreach (Entity bus in buses)
+            {
+                ConcurrentRouteHandoff handoff = EntityManager.GetComponentData<ConcurrentRouteHandoff>(bus);
+                if (m_SimulationSystem.frameIndex >= handoff.ExpiresFrame || handoff.Route == Entity.Null ||
+                    !EntityManager.Exists(handoff.Route) || !EntityManager.HasBuffer<RouteWaypoint>(handoff.Route) ||
+                    EntityManager.HasComponent<Deleted>(handoff.Route) ||
+                    EntityManager.HasComponent<Game.Tools.Temp>(handoff.Route))
+                {
+                    EntityManager.RemoveComponent<ConcurrentRouteHandoff>(bus);
+                    continue;
+                }
+
+                if (EntityManager.HasComponent<CurrentRoute>(bus))
+                {
+                    if (EntityManager.GetComponentData<CurrentRoute>(bus).m_Route != handoff.Route)
+                        EntityManager.RemoveComponent<ConcurrentRouteHandoff>(bus);
+                    continue;
+                }
+
+                CrashBreadcrumbs.Write($"route-handoff restored bus={CrashBreadcrumbs.Id(bus)} route={CrashBreadcrumbs.Id(handoff.Route)}");
+                EntityManager.AddComponentData(bus, new CurrentRoute(handoff.Route));
+            }
         }
     }
 
@@ -486,8 +690,7 @@ namespace ConcurrentBusBoarding
     {
         private EntityQuery m_Residents;
         private BoardingZoneRenderSystem m_ZoneRenderSystem;
-
-        public override int GetUpdateInterval(SystemUpdatePhase phase) => 16;
+        private SimulationSystem m_SimulationSystem;
 
         [Preserve]
         protected override void OnCreate()
@@ -495,17 +698,22 @@ namespace ConcurrentBusBoarding
             base.OnCreate();
             m_Residents = GetEntityQuery(
                 ComponentType.ReadOnly<CreatureResident>(),
+                ComponentType.ReadOnly<UpdateFrame>(),
                 ComponentType.ReadOnly<PrefabRef>(),
-                ComponentType.ReadWrite<HumanCurrentLane>());
+                ComponentType.ReadWrite<HumanCurrentLane>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
             m_ZoneRenderSystem = World.GetOrCreateSystemManaged<BoardingZoneRenderSystem>();
+            m_SimulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>();
             RequireForUpdate(m_Residents);
         }
 
         [Preserve]
         protected override void OnUpdate()
         {
-            // ponytail: a 16-frame main-thread scan avoids a new persistent passenger index; move this to a
-            // Burst job plus a stop-zone map only if profiling shows resident count makes it significant.
+            // Match ResidentAISystem's native 16-way shared-component partition. This keeps the queue-area
+            // correction on the residents updated this frame without a full-city main-thread scan.
+            m_Residents.SetSharedComponentFilter(new UpdateFrame(m_SimulationSystem.frameIndex % 16u));
             using NativeArray<Entity> residents = m_Residents.ToEntityArray(Allocator.Temp);
             foreach (Entity entity in residents)
             {
@@ -545,7 +753,7 @@ namespace ConcurrentBusBoarding
     public partial class BoardingHoldSystem : GameSystemBase
     {
         private EntityQuery m_Buses;
-
+        private int m_LastActiveCount = -1;
         [Preserve]
         protected override void OnCreate()
         {
@@ -553,7 +761,9 @@ namespace ConcurrentBusBoarding
             m_Buses = GetEntityQuery(
                 ComponentType.ReadOnly<ConcurrentBoardingActive>(),
                 ComponentType.ReadWrite<CarNavigation>(),
-                ComponentType.ReadWrite<Moving>());
+                ComponentType.ReadWrite<Moving>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
             RequireForUpdate(m_Buses);
         }
 
@@ -561,6 +771,11 @@ namespace ConcurrentBusBoarding
         protected override void OnUpdate()
         {
             using NativeArray<Entity> buses = m_Buses.ToEntityArray(Allocator.Temp);
+            if (buses.Length != m_LastActiveCount)
+            {
+                m_LastActiveCount = buses.Length;
+                CrashBreadcrumbs.Write($"hold active={buses.Length}");
+            }
             foreach (Entity bus in buses)
             {
                 CarNavigation navigation = EntityManager.GetComponentData<CarNavigation>(bus);
@@ -650,17 +865,33 @@ namespace ConcurrentBusBoarding
             int direction = routeDirection;
             bool physical = false;
 
-            // A bus already beside its target stop proves which physical side/lane it is using. Farther-away
-            // buses must not contribute their current junction or approach lane.
+            // A bus already beside its target stop proves which physical side/lane it is using. Compare its
+            // current lane with the native final EndOfPath: the current lane may still be an adjacent approach
+            // lane, while the final lane is the actual bay. Farther-away buses contribute neither.
             if (bus != Entity.Null && hasStopPosition && entityManager.HasComponent<Transform>(bus) &&
                 math.distance(entityManager.GetComponentData<Transform>(bus).m_Position, stopWorldPosition) <=
-                    BoardingPolicy.PhysicalLaneCaptureDistance &&
-                entityManager.HasComponent<CarCurrentLane>(bus))
+                    BoardingPolicy.PhysicalLaneCaptureDistance)
             {
-                CarCurrentLane current = entityManager.GetComponentData<CarCurrentLane>(bus);
-                ConsiderLane(entityManager, current.m_Lane,
-                    current.m_CurvePosition.z >= current.m_CurvePosition.x ? 1 : -1,
-                    hasStopPosition, stopWorldPosition, ref lane, ref curve, ref width, ref stopDistance, ref direction);
+                if (entityManager.HasComponent<CarCurrentLane>(bus))
+                {
+                    CarCurrentLane current = entityManager.GetComponentData<CarCurrentLane>(bus);
+                    ConsiderLane(entityManager, current.m_Lane,
+                        current.m_CurvePosition.z >= current.m_CurvePosition.x ? 1 : -1,
+                        hasStopPosition, stopWorldPosition, ref lane, ref curve, ref width, ref stopDistance, ref direction);
+                }
+                if (entityManager.HasBuffer<CarNavigationLane>(bus))
+                {
+                    DynamicBuffer<CarNavigationLane> navigation = entityManager.GetBuffer<CarNavigationLane>(bus, true);
+                    if (navigation.Length > 0)
+                    {
+                        CarNavigationLane last = navigation[navigation.Length - 1];
+                        if ((last.m_Flags & Game.Vehicles.CarLaneFlags.EndOfPath) != 0)
+                            ConsiderLane(entityManager, last.m_Lane,
+                                last.m_CurvePosition.y >= last.m_CurvePosition.x ? 1 : -1,
+                                hasStopPosition, stopWorldPosition, ref lane, ref curve, ref width,
+                                ref stopDistance, ref direction);
+                    }
+                }
                 physical = lane != Entity.Null;
             }
 
@@ -668,8 +899,9 @@ namespace ConcurrentBusBoarding
             {
                 ConsiderLane(entityManager, routeLane.m_EndLane, routeDirection, hasStopPosition, stopWorldPosition,
                     ref lane, ref curve, ref width, ref stopDistance, ref direction);
-                ConsiderLane(entityManager, routeLane.m_StartLane, routeDirection, hasStopPosition, stopWorldPosition,
-                    ref lane, ref curve, ref width, ref stopDistance, ref direction);
+                if (lane == Entity.Null)
+                    ConsiderLane(entityManager, routeLane.m_StartLane, routeDirection, hasStopPosition, stopWorldPosition,
+                        ref lane, ref curve, ref width, ref stopDistance, ref direction);
                 if (bus != Entity.Null && lane == Entity.Null && entityManager.HasBuffer<CarNavigationLane>(bus))
                 {
                     DynamicBuffer<CarNavigationLane> navigation = entityManager.GetBuffer<CarNavigationLane>(bus, true);
@@ -715,8 +947,81 @@ namespace ConcurrentBusBoarding
                 StopDistance = stopDistance,
                 IsPhysical = physical
             };
+            BuildZonePieces(entityManager, waypoint, ref zone);
             ApplyOverride(entityManager, stop, ref zone);
             return true;
+        }
+
+        private static void BuildZonePieces(EntityManager entityManager, Entity waypoint, ref BoardingZone zone)
+        {
+            zone.Pieces = new List<BoardingZonePiece>();
+            float2 firstBounds = zone.Direction >= 0
+                ? new float2(0f, math.clamp(zone.CurvePosition, 0f, 1f))
+                : new float2(math.clamp(zone.CurvePosition, 0f, 1f), 1f);
+            zone.Pieces.Add(new BoardingZonePiece
+            {
+                Lane = zone.Lane,
+                Curve = zone.Curve,
+                Bounds = firstBounds,
+                Width = zone.Width,
+                Direction = zone.Direction
+            });
+
+            if (!entityManager.HasComponent<Owner>(waypoint) || !entityManager.HasComponent<Waypoint>(waypoint))
+                return;
+            Entity route = entityManager.GetComponentData<Owner>(waypoint).m_Owner;
+            if (route == Entity.Null || !entityManager.HasBuffer<RouteSegment>(route))
+                return;
+
+            DynamicBuffer<RouteSegment> segments = entityManager.GetBuffer<RouteSegment>(route, true);
+            if (segments.Length == 0)
+                return;
+            int waypointIndex = entityManager.GetComponentData<Waypoint>(waypoint).m_Index;
+            float3 rear = PieceRear(zone.Pieces[0]);
+            float available = PieceLength(zone.Pieces[0]);
+            bool foundCurrentLane = false;
+
+            for (int offset = 1; offset <= segments.Length && available < BoardingPolicy.MaximumCustomZoneLength; offset++)
+            {
+                int segmentIndex = (waypointIndex - offset + segments.Length) % segments.Length;
+                Entity segment = segments[segmentIndex].m_Segment;
+                if (segment == Entity.Null || !entityManager.HasBuffer<PathElement>(segment))
+                    break;
+                DynamicBuffer<PathElement> path = entityManager.GetBuffer<PathElement>(segment, true);
+                for (int i = path.Length - 1; i >= 0 && available < BoardingPolicy.MaximumCustomZoneLength; i--)
+                {
+                    PathElement element = path[i];
+                    if (!foundCurrentLane)
+                    {
+                        if (element.m_Target == zone.Lane)
+                            foundCurrentLane = true;
+                        continue;
+                    }
+                    if (element.m_Target == zone.Lane ||
+                        !TryGetLaneGeometry(entityManager, element.m_Target, out Curve curve, out float width))
+                        continue;
+
+                    float2 delta = math.clamp(element.m_TargetDelta, 0f, 1f);
+                    float2 bounds = new float2(math.min(delta.x, delta.y), math.max(delta.x, delta.y));
+                    if ((bounds.y - bounds.x) * curve.m_Length < 0.1f)
+                        continue;
+                    int direction = element.m_TargetDelta.y >= element.m_TargetDelta.x ? 1 : -1;
+                    BoardingZonePiece piece = new BoardingZonePiece
+                    {
+                        Lane = element.m_Target,
+                        Curve = curve,
+                        Bounds = bounds,
+                        Width = width,
+                        Direction = direction
+                    };
+                    if (math.distance(PieceFront(piece), rear) > 12f)
+                        continue;
+                    foundCurrentLane = true;
+                    zone.Pieces.Add(piece);
+                    rear = PieceRear(piece);
+                    available += PieceLength(piece);
+                }
+            }
         }
 
         private static void ConsiderLane(EntityManager entityManager, Entity candidate, int candidateDirection,
@@ -747,7 +1052,7 @@ namespace ConcurrentBusBoarding
             zone.CustomLength = custom.m_Length;
         }
 
-        private static bool TryGetLaneGeometry(EntityManager entityManager, Entity lane, out Curve curve, out float width)
+        internal static bool TryGetLaneGeometry(EntityManager entityManager, Entity lane, out Curve curve, out float width)
         {
             curve = default;
             width = 3.5f;
@@ -796,8 +1101,19 @@ namespace ConcurrentBusBoarding
 
         internal static float GetZoneLength(BoardingZone zone)
         {
-            float2 bounds = GetZoneBounds(zone);
-            return (bounds.y - bounds.x) * zone.Curve.m_Length;
+            float remaining = GetRequestedZoneLength(zone);
+            float length = 0f;
+            if (zone.Pieces == null)
+                return 0f;
+            foreach (BoardingZonePiece piece in zone.Pieces)
+            {
+                float pieceLength = math.min(PieceLength(piece), remaining);
+                length += pieceLength;
+                remaining -= pieceLength;
+                if (remaining <= 0f)
+                    break;
+            }
+            return length;
         }
 
         internal static float2 GetZoneBounds(BoardingZone zone)
@@ -807,6 +1123,74 @@ namespace ConcurrentBusBoarding
                 out float start, out float end);
             return new float2(start, end);
         }
+
+        internal static float GetRequestedZoneLength(BoardingZone zone)
+        {
+            if (zone.IsCustom)
+                return math.clamp(zone.CustomLength, BoardingPolicy.MinimumCustomZoneLength,
+                    BoardingPolicy.MaximumCustomZoneLength);
+            if (zone.IsPullIn && zone.Pieces != null && zone.Pieces.Count > 0)
+                return PieceLength(zone.Pieces[0]);
+            return BoardingPolicy.OrdinaryZoneLength;
+        }
+
+        internal static bool TryGetRearEdge(BoardingZone zone, out BoardingZonePiece rearPiece, out float2 rearBounds)
+        {
+            rearPiece = default;
+            rearBounds = default;
+            float remaining = GetRequestedZoneLength(zone);
+            if (zone.Pieces == null)
+                return false;
+            foreach (BoardingZonePiece piece in zone.Pieces)
+            {
+                rearPiece = piece;
+                rearBounds = TrimFromFront(piece, remaining);
+                remaining -= PieceLength(piece);
+                if (remaining <= 0f)
+                    return true;
+            }
+            return zone.Pieces.Count > 0;
+        }
+
+        internal static bool TryGetDistanceFromFront(BoardingZone zone, float3 point, out float distanceFromFront)
+        {
+            distanceFromFront = 0f;
+            float bestDistance = float.MaxValue;
+            float traversed = 0f;
+            if (zone.Pieces == null)
+                return false;
+            foreach (BoardingZonePiece piece in zone.Pieces)
+            {
+                float lateral = MathUtils.Distance(piece.Curve.m_Bezier, point, out float position);
+                if (position >= piece.Bounds.x - 0.01f && position <= piece.Bounds.y + 0.01f && lateral < bestDistance)
+                {
+                    bestDistance = lateral;
+                    float local = piece.Direction >= 0
+                        ? (piece.Bounds.y - position) * piece.Curve.m_Length
+                        : (position - piece.Bounds.x) * piece.Curve.m_Length;
+                    distanceFromFront = traversed + math.clamp(local, 0f, PieceLength(piece));
+                }
+                traversed += PieceLength(piece);
+            }
+            return bestDistance <= 20f;
+        }
+
+        internal static float2 TrimFromFront(BoardingZonePiece piece, float length)
+        {
+            float range = math.min(PieceLength(piece), math.max(0f, length)) / math.max(1f, piece.Curve.m_Length);
+            return piece.Direction >= 0
+                ? new float2(piece.Bounds.y - range, piece.Bounds.y)
+                : new float2(piece.Bounds.x, piece.Bounds.x + range);
+        }
+
+        internal static float PieceLength(BoardingZonePiece piece) =>
+            (piece.Bounds.y - piece.Bounds.x) * piece.Curve.m_Length;
+
+        internal static float3 PieceFront(BoardingZonePiece piece) =>
+            MathUtils.Position(piece.Curve.m_Bezier, piece.Direction >= 0 ? piece.Bounds.y : piece.Bounds.x);
+
+        internal static float3 PieceRear(BoardingZonePiece piece) =>
+            MathUtils.Position(piece.Curve.m_Bezier, piece.Direction >= 0 ? piece.Bounds.x : piece.Bounds.y);
 
         internal static bool IsPassengerBusStop(EntityManager entityManager, Entity stop)
         {
@@ -826,6 +1210,19 @@ namespace ConcurrentBusBoarding
             Entity prefab = entityManager.GetComponentData<PrefabRef>(vehicle).m_Prefab;
             return entityManager.HasComponent<PublicTransportVehicleData>(prefab) &&
                 entityManager.GetComponentData<PublicTransportVehicleData>(prefab).m_TransportType == TransportType.Bus;
+        }
+
+        internal static bool HasLoadedCarPrefab(EntityManager entityManager, PrefabSystem prefabSystem, Entity vehicle,
+            out Entity prefab)
+        {
+            prefab = Entity.Null;
+            if (!entityManager.Exists(vehicle) || !entityManager.HasComponent<PrefabRef>(vehicle))
+                return false;
+            prefab = entityManager.GetComponentData<PrefabRef>(vehicle).m_Prefab;
+            return prefab != Entity.Null && entityManager.Exists(prefab) &&
+                !entityManager.HasComponent<Deleted>(prefab) &&
+                !entityManager.HasComponent<Game.Tools.Temp>(prefab) &&
+                prefabSystem.TryGetPrefab(prefab, out CarPrefab _);
         }
 
         internal static bool TryGetStop(EntityManager entityManager, Entity vehicle, out Entity stop)
@@ -878,14 +1275,22 @@ namespace ConcurrentBusBoarding
 
         private static bool IsPointInside(BoardingZone zone, float3 point)
         {
-            float curvePosition;
-            float distance = MathUtils.Distance(zone.Curve.m_Bezier, point, out curvePosition);
-            float normalizedTolerance = BoardingPolicy.BoardingPositionTolerance /
-                math.max(1f, zone.Curve.m_Length);
-            float2 bounds = GetZoneBounds(zone);
-            return curvePosition >= bounds.x - normalizedTolerance &&
-                curvePosition <= bounds.y + normalizedTolerance &&
-                distance <= zone.Width * 0.5f + BoardingPolicy.BoardingPositionTolerance;
+            float remaining = GetRequestedZoneLength(zone);
+            if (zone.Pieces == null)
+                return false;
+            foreach (BoardingZonePiece piece in zone.Pieces)
+            {
+                float2 bounds = TrimFromFront(piece, remaining);
+                float distance = MathUtils.Distance(piece.Curve.m_Bezier, point, out float curvePosition);
+                float tolerance = BoardingPolicy.BoardingPositionTolerance / math.max(1f, piece.Curve.m_Length);
+                if (curvePosition >= bounds.x - tolerance && curvePosition <= bounds.y + tolerance &&
+                    distance <= piece.Width * 0.5f + BoardingPolicy.BoardingPositionTolerance)
+                    return true;
+                remaining -= PieceLength(piece);
+                if (remaining <= 0f)
+                    break;
+            }
+            return false;
         }
     }
 }

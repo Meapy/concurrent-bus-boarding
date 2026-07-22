@@ -34,28 +34,15 @@ export default function register(moduleRegistry) {
 
     const LinesSectionWithEditor = (props) => {
       const zone = useValue(zoneEditor$);
-      const [offset, setOffset] = React.useState(zone.offset ?? 0);
       const [length, setLength] = React.useState(zone.length ?? 26);
-      const offsetRef = React.useRef(offset);
-      const lengthRef = React.useRef(length);
       const oneMetreSteps = useStepTransformer(1);
 
       React.useEffect(() => {
-        offsetRef.current = zone.offset ?? 0;
-        lengthRef.current = zone.length ?? 26;
-        setOffset(offsetRef.current);
-        setLength(lengthRef.current);
-      }, [zone.offset, zone.length, zone.customized]);
-
-      const changeOffset = (value) => {
-        offsetRef.current = value;
-        setOffset(value);
-        trigger("ConcurrentBusBoarding", "setZone", value, lengthRef.current);
-      };
+        setLength(zone.length ?? 26);
+      }, [zone.length, zone.customized]);
       const changeLength = (value) => {
-        lengthRef.current = value;
         setLength(value);
-        trigger("ConcurrentBusBoarding", "setZone", offsetRef.current, value);
+        trigger("ConcurrentBusBoarding", "setZone", 0, value);
       };
       const reset = () => trigger("ConcurrentBusBoarding", "resetZone");
       const toggleEditing = () => trigger("ConcurrentBusBoarding", "toggleZoneEditing");
@@ -81,18 +68,6 @@ export default function register(moduleRegistry) {
           zone.available && React.createElement(
             React.Fragment,
             null,
-            React.createElement(InfoRow, {
-              disableFocus: true,
-              left: "Position",
-              right: `${Math.round(offset)} m`
-            }),
-            React.createElement("div", { className: styles.sliderRow }, React.createElement(Slider, {
-              value: offset,
-              start: -100,
-              end: 100,
-              valueTransformer: oneMetreSteps,
-              onChange: changeOffset
-            })),
             React.createElement(InfoRow, {
               disableFocus: true,
               left: "Length",
@@ -127,7 +102,7 @@ export default function register(moduleRegistry) {
             zone.editing && React.createElement(InfoRow, {
               disableFocus: true,
               left: "Handles",
-              right: "White moves; cyan corners resize"
+              right: "Cyan rear corners resize"
             }),
             zone.customized && React.createElement(InfoRow, {
               disableFocus: true,

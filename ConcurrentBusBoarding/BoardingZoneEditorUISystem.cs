@@ -57,7 +57,6 @@ namespace ConcurrentBusBoarding
             BoardingZone zone = default;
             bool available = visible && m_RenderSystem.TryGetObservedZone(stop, out zone);
             bool customized = visible && EntityManager.HasComponent<BoardingZoneOverride>(stop);
-            float offset = 0f;
             float length = BoardingPolicy.OrdinaryZoneLength;
 
             if (available)
@@ -65,15 +64,11 @@ namespace ConcurrentBusBoarding
                 if (customized)
                 {
                     BoardingZoneOverride custom = EntityManager.GetComponentData<BoardingZoneOverride>(stop);
-                    offset = custom.m_Offset;
                     length = custom.m_Length;
                 }
                 else
                 {
-                    float2 bounds = BoardingHelpers.GetZoneBounds(zone);
-                    float center = (bounds.x + bounds.y) * 0.5f;
-                    offset = (center - zone.CurvePosition) * zone.Curve.m_Length * zone.Direction;
-                    length = (bounds.y - bounds.x) * zone.Curve.m_Length;
+                    length = BoardingHelpers.GetZoneLength(zone);
                 }
             }
 
@@ -87,19 +82,18 @@ namespace ConcurrentBusBoarding
             writer.PropertyName("editing");
             writer.Write(visible && m_ZoneTool.EditingStop == stop);
             writer.PropertyName("offset");
-            writer.Write(offset);
+            writer.Write(0f);
             writer.PropertyName("length");
             writer.Write(length);
             writer.TypeEnd();
         }
 
-        private void SetZone(float offset, float length)
+        private void SetZone(float ignoredOffset, float length)
         {
             if (!TryGetSelectedStop(out Entity stop) || !m_RenderSystem.TryGetObservedZone(stop, out _))
                 return;
 
-            var custom = new BoardingZoneOverride(
-                math.clamp(offset, -BoardingPolicy.MaximumCustomZoneOffset, BoardingPolicy.MaximumCustomZoneOffset),
+            var custom = new BoardingZoneOverride(0f,
                 math.clamp(length, BoardingPolicy.MinimumCustomZoneLength, BoardingPolicy.MaximumCustomZoneLength));
             if (EntityManager.HasComponent<BoardingZoneOverride>(stop))
                 EntityManager.SetComponentData(stop, custom);
