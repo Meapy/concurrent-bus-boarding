@@ -259,6 +259,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-22T23:49:00+01:00 [TOOL] Supersedes the pending follow-up in the 23:42 outcome: ForumLink PR #4 passed GitGuardian and was squash-merged as `be0a0d1`; local `master` is current. Version 1.1.0 and its forum metadata are live.
 - 2026-07-22T23:42:00+01:00 [TOOL] GitHub PR #3 passed GitGuardian and was squash-merged to `master` as `1c688d3`. Paradox Mod Publisher successfully created public version 1.1.0 from the verified release directory, then successfully applied the dedicated `ForumLink` metadata update. The public mod URL returns HTTP 200. A small GitHub follow-up for the corrected XML remains.
 - 2026-07-22T23:18:00+01:00 [TOOL] User confirmed deployed diagnostic v6 works properly. Clean version 1.1.0 builds with the official toolchain at 0 warnings/errors; UI smoke, policy, and whitespace checks pass. Release DLL SHA-256 is `F87D520F03528C667640EB503587012B2613783A12223A13E1C241F6087B0E3C`, with zero external `CrashBreadcrumbs` IL call sites. GitHub/Paradox publication remains in progress.
 - 2026-07-22T22:23:00+01:00 [TOOL] Diagnostic v6 staged DLL SHA-256 is `09CB676AE9A0E068386E1EFA4DDA1F62781FDEE4262BD98773A7496DA6507729`. Deployment and gameplay confirmation of both route-panel persistence and crash behavior remain pending until Cities II is closed.

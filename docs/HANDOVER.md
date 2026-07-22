@@ -70,7 +70,8 @@ Version 1.1.0 is the published concurrent-boarding implementation for Cities: Sk
 
 ## Release procedure
 
-Release procedure completed on 2026-07-22. The only follow-up commit is the publisher-specific `ForumLink` correction.
+Release procedure completed on 2026-07-22. The publisher-specific `ForumLink` correction was merged through PR #4 as
+`be0a0d1`, and the live metadata update succeeded.
 
 ## Next work
 
