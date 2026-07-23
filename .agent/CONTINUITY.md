@@ -1,4 +1,5 @@
 [PLANS]
+- 2026-07-23T10:36:00+01:00 [USER] Deploy the compiled crash-hardening and global-reset package to the local Mods folder for gameplay testing.
 - 2026-07-23T10:27:00+01:00 [USER] Add a global settings option that resets every customized boarding zone.
 - 2026-07-23T10:13:00+01:00 [USER] Keep the audit and crash-hardening changes on their own branch.
 - 2026-07-23T10:10:00+01:00 [USER] Supersedes the read-only audit constraint: enable mod errors in the in-game UI and implement the smallest logic hardening that reduces crash risk.
@@ -137,6 +138,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-23T10:36:00+01:00 [TOOL] Cities II was closed. Backed up the prior diagnostic-v6 live package, copied all eight verified files to the exact local `ConcurrentBusBoarding` Mods folder, and confirmed every staged/live SHA-256 matches.
 - 2026-07-23T10:27:00+01:00 [TOOL] The global zone-reset action passes policy, native settings API compilation, whitespace/diff checks, webpack UI smoke testing, and the official 1.6.0 Release build with 0 warnings/errors.
 - 2026-07-23T10:16:00+01:00 [TOOL] Zone-drawing validation passes policy, whitespace, diff, and official 1.6.0 Release checks with 0 warnings/errors on `feature/crash-hardening`; the live Mods folder remains untouched.
 - 2026-07-23T10:13:00+01:00 [TOOL] Created and switched the staged work to `feature/crash-hardening`; nothing was pushed.
@@ -279,6 +281,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-23T10:36:00+01:00 [TOOL] The 54,272-byte `898DF2E4...D6E0` hardening/reset DLL and its seven matching package companions are installed locally for testing. Rollback copy: `artifacts/pre-hardening-live-20260723-1029/ConcurrentBusBoarding`. A game restart and the documented gameplay/save-reset matrix remain.
 - 2026-07-23T10:27:00+01:00 [TOOL] Supersedes the 10:16 staged artifact: the confirmed current-city reset candidate is a 54,272-byte DLL with SHA-256 `898DF2E4FF1C4AC227F095EA21B4520235379DEA1495835540305B02F3F7D6E0`. It remains isolated on `feature/crash-hardening`; in-game confirmation and save/reload testing remain.
 - 2026-07-23T10:16:00+01:00 [TOOL] Supersedes the 10:10 staged artifact: the zone-hardened candidate is a 53,248-byte DLL with SHA-256 `5A0AC0FC6C0B91D8CF041F1F3619CCF38490A934910583D7EE1330F6EFECC05E`. It remains isolated and requires the documented gameplay/rendering test matrix.
 - 2026-07-23T10:10:00+01:00 [TOOL] The audit's four findings are hardened in an isolated candidate: native/synthetic lifecycle ownership, retirement-aware route preservation, waypoint validation, and render-cache eviction. The staged 52,224-byte DLL SHA-256 is `D08C44AAA3B80C12461214E6F9DC1273AEF3A45A23E745E035428FA7DB71A729`; deployment and the documented gameplay matrix remain pending.

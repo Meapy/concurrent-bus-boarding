@@ -116,8 +116,8 @@ auto-flushed `Logs/ConcurrentBusBoarding-breadcrumbs.log`; never pass that prope
 
 ### Crash hardening implementation (2026-07-23)
 
-The post-release audit findings are addressed in the current workspace, but this package has not been deployed or
-gameplay-tested:
+The post-release audit findings are addressed in the current workspace. The exact verified package was deployed to the
+local `ConcurrentBusBoarding` Mods folder on 2026-07-23 while Cities II was closed; gameplay testing remains:
 
 - Mod logger errors now opt into the in-game error UI.
 - `ConcurrentBoardingActive` records whether the game or the mod began the boarding session. Synthetic sessions have
@@ -152,6 +152,8 @@ Verification:
   `artifacts/hardening-20260723/ConcurrentBusBoarding` package with 0 warnings and 0 errors.
 - The staged 54,272-byte DLL SHA-256 is
   `898DF2E4FF1C4AC227F095EA21B4520235379DEA1495835540305B02F3F7D6E0`.
+- All eight staged/live file hashes match. The replaced diagnostic-v6 package is recoverable from
+  `artifacts/pre-hardening-live-20260723-1029/ConcurrentBusBoarding`.
 
 Before release, gameplay-test concurrent native and synthetic followers, depot return, route abandonment/reassignment,
 deleting an active stop, and a save with a missing custom-bus asset. Confirm both boarding behavior and route-panel
