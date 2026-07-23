@@ -17,8 +17,9 @@ Version 1.1.0 is the published concurrent-boarding implementation for Cities: Sk
   transforms, and rotation. The registered systems never reposition a bus or rewrite its navigation endpoint.
 - A stopped bus whose centre is inside the zone can enter managed boarding. Ordinary automatic stops admit two buses;
   pull-ins use vehicle-length capacity; custom zones admit every contained stopped bus.
-- Active buses share the stop's native `BoardingVehicle` pointer round-robin so waiting residents can choose each bus
-  while the game retains route, fare, capacity, animation, and passenger-buffer behavior.
+- Active buses share the stop's native `BoardingVehicle` pointer round-robin. Each bus keeps the pointer for one complete
+  16-frame resident update sweep so every waiting-resident partition can try it before the next bus is selected, while
+  the game retains route, fare, capacity, animation, and passenger-buffer behavior.
 - Each admitted bus is physically held at its own queue position. The bus ahead leaving cannot pull it forward.
 - Concurrent admission requires the bus's native `CurrentRoute`, rejecting line-detached or orphaned save vehicles.
   The managed latch retains the route, and a bounded post-stop handoff restores a one-time removal after the latch ends
@@ -160,3 +161,26 @@ deleting an active stop, and a save with a missing custom-bus asset. Confirm bot
 persistence. Also toggle selected/all-stop overlays, edit a zone, and delete or rebuild roads while overlays are visible
 to confirm stale zones disappear without rendering errors. Create several custom zones, cancel the global reset once,
 then confirm it and verify that all zones return to automatic sizing and remain automatic after save/reload.
+
+### Rear-bus passenger retry hardening (2026-07-23)
+
+Installed Cities: Skylines II 1.6.0 IL confirms that `ResidentAISystem` updates residents in 16 fixed frame partitions.
+For a waiting resident, `RouteUtils.GetBoardingVehicle` supplies only the stop's single advertised vehicle; if
+`BoardingJob.TryFindVehicle` finds that vehicle full, it returns no vehicle and does not try another active bus.
+Previously, the mod changed the advertised bus every frame. A resident in one fixed partition could therefore always
+sample the full lead bus while a following bus was advertised only on other partitions.
+
+`PassengerDistributionSystem` now derives its rotation turn from `simulationFrame / 16`. Each active bus owns the
+passenger-facing stop slot for a complete native resident sweep before rotation advances. The rotation still includes
+full buses so their onboard passengers retain a complete sweep in which to exit.
+
+Verification:
+
+- Policy checks prove that all frames 0-15 select the first bus and all frames 16-31 select the following bus.
+- The UI production bundle and zone-editor smoke check pass.
+- Whitespace verification and `git diff --check` pass.
+- The official toolchain builds `artifacts/rear-boarding-20260723/ConcurrentBusBoarding` with 0 warnings and 0 errors.
+- The staged 54,272-byte DLL SHA-256 is
+  `403501CDD3DB9E12B2C756BE8666978E4CE9071BBB4464ACA0E2981276157AF9`.
+- Cities II was running during the build, so the live Mods package was deliberately not changed. Close the game before
+  deploying this candidate, then test a full lead bus, a following bus with capacity, and unloading from both buses.

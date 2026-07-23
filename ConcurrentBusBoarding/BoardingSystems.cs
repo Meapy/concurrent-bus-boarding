@@ -455,7 +455,6 @@ namespace ConcurrentBusBoarding
     public partial class PassengerDistributionSystem : GameSystemBase
     {
         private EntityQuery m_Buses;
-        private uint m_Turn;
         private SimulationSystem m_SimulationSystem;
 
         [Preserve]
@@ -554,11 +553,11 @@ namespace ConcurrentBusBoarding
                 BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
                 if (slot.m_Vehicle != Entity.Null && !BoardingHelpers.IsBus(EntityManager, slot.m_Vehicle))
                     continue;
-                slot.m_Vehicle = entry.Value[BoardingPolicy.RotationIndex(entry.Value.Count, m_Turn, (uint)stop.Index)];
+                uint turn = BoardingPolicy.PassengerSelectionTurn(m_SimulationSystem.frameIndex);
+                slot.m_Vehicle = entry.Value[
+                    BoardingPolicy.RotationIndex(entry.Value.Count, turn, (uint)stop.Index)];
                 EntityManager.SetComponentData(stop, slot);
             }
-
-            m_Turn++;
         }
 
         private void BeginRouteHandoff(Entity bus, Entity route)

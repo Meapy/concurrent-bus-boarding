@@ -76,6 +76,19 @@ internal static class BoardingPolicyCheck
         Expect(start == 0.5f && end == 0.5f, "invalid custom lane has no boarding area");
         Expect(BoardingPolicy.RotationIndex(3, 0, 0) == 0, "rotation start");
         Expect(BoardingPolicy.RotationIndex(3, 1, 0) == 1, "rotation advance");
+        Expect(BoardingPolicy.PassengerSelectionTurn(0) == 0, "passenger selection starts at first sweep");
+        Expect(BoardingPolicy.PassengerSelectionTurn(15) == 0,
+            "passenger selection stays fixed for every resident partition");
+        Expect(BoardingPolicy.PassengerSelectionTurn(16) == 1,
+            "passenger selection advances after a complete resident sweep");
+        for (uint frame = 0; frame < BoardingPolicy.ResidentUpdateFrames; frame++)
+            Expect(BoardingPolicy.RotationIndex(2, BoardingPolicy.PassengerSelectionTurn(frame), 0) == 0,
+                "all first-sweep resident partitions see the lead bus");
+        for (uint frame = BoardingPolicy.ResidentUpdateFrames;
+             frame < BoardingPolicy.ResidentUpdateFrames * 2;
+             frame++)
+            Expect(BoardingPolicy.RotationIndex(2, BoardingPolicy.PassengerSelectionTurn(frame), 0) == 1,
+                "all second-sweep resident partitions see the following bus");
         Expect(!BoardingPolicy.CanFinishBoarding(99, 100, float.MaxValue, true), "boarding dwell must finish");
         Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, true), "waiting passengers must finish");
         Expect(!BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false), "onboard transitions must finish");

@@ -1,4 +1,5 @@
 [PLANS]
+- 2026-07-23T11:09:51+01:00 [USER] Harden passenger distribution so a following bus actually gets boarding attempts when the lead bus is full.
 - 2026-07-23T10:36:00+01:00 [USER] Deploy the compiled crash-hardening and global-reset package to the local Mods folder for gameplay testing.
 - 2026-07-23T10:27:00+01:00 [USER] Add a global settings option that resets every customized boarding zone.
 - 2026-07-23T10:13:00+01:00 [USER] Keep the audit and crash-hardening changes on their own branch.
@@ -52,6 +53,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-23T11:09:51+01:00 [CODE] Hold each stop's passenger-facing `BoardingVehicle` for the installed game's complete 16-frame resident update sweep, then rotate fairly. Do not filter full buses, because onboard passengers also require the pointer to exit.
 - 2026-07-23T10:27:00+01:00 [CODE] Use the native confirmation-protected settings button. Queue the request from the setting setter and remove all live `BoardingZoneOverride` components inside `BoardingZoneEditorUISystem.OnUpdate`, keeping structural ECS changes in the owning game world and defining reset as component absence.
 - 2026-07-23T10:16:00+01:00 [CODE] Validate every cached zone lane piece and numeric curve input before submitting overlay primitives. Evict stale zones and reject non-finite saved lengths/pointer geometry instead of catching after a potentially invalid native render-buffer write.
 - 2026-07-23T10:10:00+01:00 [CODE] Track native versus synthetic boarding ownership. Expose only selected native sessions to `TransportCarAISystem`; adopt a synthetic session only when native AI returns it to `Boarding`; manually complete only remaining synthetic sessions. Gate route restoration and target changes on a live, matching route/waypoint and non-retiring transport state.
@@ -138,6 +140,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-23T11:09:51+01:00 [TOOL] Sticky passenger selection passes policy, UI smoke, whitespace/diff, and official 1.6.0 Release checks with 0 warnings/errors. Cities II is running, so only the isolated staged package was updated.
 - 2026-07-23T10:36:00+01:00 [TOOL] Cities II was closed. Backed up the prior diagnostic-v6 live package, copied all eight verified files to the exact local `ConcurrentBusBoarding` Mods folder, and confirmed every staged/live SHA-256 matches.
 - 2026-07-23T10:27:00+01:00 [TOOL] The global zone-reset action passes policy, native settings API compilation, whitespace/diff checks, webpack UI smoke testing, and the official 1.6.0 Release build with 0 warnings/errors.
 - 2026-07-23T10:16:00+01:00 [TOOL] Zone-drawing validation passes policy, whitespace, diff, and official 1.6.0 Release checks with 0 warnings/errors on `feature/crash-hardening`; the live Mods folder remains untouched.
@@ -221,6 +224,7 @@
 - 2026-07-21T12:05:23+01:00 [TOOL] Committed the full pull-in lane and settling-threshold correction as `a9e66b6`, pushed `feature/concurrent-boarding`, and refreshed draft PR #1 with the Butler Street evidence and current verification.
 
 [DISCOVERIES]
+- 2026-07-23T11:09:51+01:00 [TOOL] Installed 1.6.0 `ResidentAISystem.OnUpdate` filters residents by `frameIndex % 16`. `RouteUtils.GetBoardingVehicle` offers one stop vehicle, and `BoardingJob.TryFindVehicle` returns null on insufficient capacity without trying another active bus. Per-frame pointer rotation could therefore phase-lock a resident to the same full lead bus.
 - 2026-07-23T10:16:00+01:00 [CODE] The overlay previously checked only the cached primary lane before drawing and could retain stale rear pieces or forward non-finite curve/width/save values to the native overlay buffer. All pieces and numeric inputs are now validated before any `DrawCurve`/handle operation.
 - 2026-07-23T10:10:00+01:00 [CODE] Clearing a synthetic session's `Boarding` flag before native vehicle AI prevents the known indirect unpaired completion path. If native AI sets the flag during that tick, treating the session as native preserves the game's paired begin/end lifecycle; blanket exception catches would not make a native/Burst crash recoverable and could hide partial ECS writes.
 - 2026-07-23T10:05:00+01:00 [CODE] HIGH crash risk: `BeginBoarding` manufactures `PublicTransportFlags.Boarding` and a stop slot without the native `TransportBoardingHelpers.BoardingData.BeginBoarding` producer. Installed 1.6.0 IL proves `TransportCarTickJob` can later run native `StopBoarding`/`EndBoarding` for that selected synthetic bus; the source regex check does not detect this indirect lifecycle.
@@ -281,6 +285,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-23T11:09:51+01:00 [TOOL] Rear-bus retry candidate staged at `artifacts/rear-boarding-20260723/ConcurrentBusBoarding`; DLL is 54,272 bytes, SHA-256 `403501CDD3DB9E12B2C756BE8666978E4CE9071BBB4464ACA0E2981276157AF9`. Live deployment and gameplay confirmation remain because Cities II is running.
 - 2026-07-23T10:36:00+01:00 [TOOL] The 54,272-byte `898DF2E4...D6E0` hardening/reset DLL and its seven matching package companions are installed locally for testing. Rollback copy: `artifacts/pre-hardening-live-20260723-1029/ConcurrentBusBoarding`. A game restart and the documented gameplay/save-reset matrix remain.
 - 2026-07-23T10:27:00+01:00 [TOOL] Supersedes the 10:16 staged artifact: the confirmed current-city reset candidate is a 54,272-byte DLL with SHA-256 `898DF2E4FF1C4AC227F095EA21B4520235379DEA1495835540305B02F3F7D6E0`. It remains isolated on `feature/crash-hardening`; in-game confirmation and save/reload testing remain.
 - 2026-07-23T10:16:00+01:00 [TOOL] Supersedes the 10:10 staged artifact: the zone-hardened candidate is a 53,248-byte DLL with SHA-256 `5A0AC0FC6C0B91D8CF041F1F3619CCF38490A934910583D7EE1330F6EFECC05E`. It remains isolated and requires the documented gameplay/rendering test matrix.

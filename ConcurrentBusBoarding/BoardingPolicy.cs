@@ -11,6 +11,7 @@ namespace ConcurrentBusBoarding
         internal const float PhysicalLaneCaptureDistance = 40f;
         internal const float MinimumCustomZoneLength = 6f;
         internal const float MaximumCustomZoneLength = 200f;
+        internal const uint ResidentUpdateFrames = 16u;
 
         internal static bool IsPullInLane(bool secondaryLane, bool splitsFromRoad, bool mergesIntoRoad,
             bool sameRoadLaneTransition)
@@ -119,6 +120,11 @@ namespace ConcurrentBusBoarding
         internal static int RotationIndex(int count, uint turn, uint salt)
         {
             return count <= 1 ? 0 : (int)((turn + salt) % (uint)count);
+        }
+
+        internal static uint PassengerSelectionTurn(uint simulationFrame)
+        {
+            return simulationFrame / ResidentUpdateFrames;
         }
 
         internal static bool CanFinishBoarding(uint frame, uint departureFrame, float maxBoardingDistance,
