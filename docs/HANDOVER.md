@@ -235,3 +235,26 @@ Verification:
   is recoverable from `artifacts/pre-lead-stop-live-20260723-115214/ConcurrentBusBoarding`.
 - Gameplay confirmation remains: verify that an empty first bus stops for waiting passengers, then verify a follower
   behind a full lead bus also stops and boards.
+
+### Version 1.2.0 release preparation (2026-07-23)
+
+The user authorized pushing, merging, and publishing the complete `feature/crash-hardening` branch. `CHANGELOG.md`
+and `Properties/PublishConfiguration.xml` now identify version 1.2.0 and summarize crash hardening, safe zone
+rendering, the global zone reset, full-sweep rear-bus passenger selection, native first-bus admission, and target-stop
+requests.
+
+Release input:
+
+- Source metadata commit: `1055d5b` (`Release Concurrent Bus Boarding 1.2.0`).
+- Verified package: `artifacts/lead-bus-require-stop-20260723/ConcurrentBusBoarding`.
+- Managed DLL: 54,272 bytes, SHA-256
+  `F48BCF8D1706D3921EA3AE87430EA4596FA2351B3CCD170FD040BCCB0A4B3A50`.
+- All eight package hashes were re-read successfully; required DLL, MJS, CSS, and three platform libraries are present.
+- Policy checks, XML parsing, `git diff --check`, UI production build/smoke test, and whitespace verification pass.
+- A fresh duplicate build was not run because the execution service rejected the elevated toolchain command for usage
+  limits. The selected package is the already verified official-toolchain build of the exact runtime commit
+  `99d82e6`; release metadata does not change packaged binaries.
+
+Remote state is unchanged. The official Paradox `NewVersion` upload and `git push` were each rejected before execution
+by the execution service's usage limit. Do not record version 1.2.0 as public until the branch is pushed, its PR is
+merged, the exact package above is accepted by ModPublisher, and both GitHub and public mod `152153` are verified.

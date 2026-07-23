@@ -1,4 +1,5 @@
 [PLANS]
+- 2026-07-23T12:31:19+01:00 [USER] Push and merge `feature/crash-hardening`, publish its changelog, and upload the complete release to Paradox Mods.
 - 2026-07-23T11:29:05+01:00 [USER] Fix empty buses driving past stops without entering boarding after the rear-bus retry deployment.
 - 2026-07-23T11:09:51+01:00 [USER] Harden passenger distribution so a following bus actually gets boarding attempts when the lead bus is full.
 - 2026-07-23T10:36:00+01:00 [USER] Deploy the compiled crash-hardening and global-reset package to the local Mods folder for gameplay testing.
@@ -54,6 +55,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-23T12:31:19+01:00 [ASSUMPTION] Release the complete branch as version 1.2.0. Use the already verified official-toolchain package from runtime commit `99d82e6` because release metadata does not affect binaries and a duplicate elevated build was rejected before execution by the service usage limit.
 - 2026-07-23T11:52:34+01:00 [CODE] Set the native `RequireStop` bit on any unmanaged bus already inside an admissible target-stop zone. Preserve native braking, navigation, waypoint selection, and first-bus boarding; synthetic boarding remains follower-only.
 - 2026-07-23T11:29:05+01:00 [CODE] Reserve synthetic admission for actual followers by requiring an already-active boarding bus. Let the first bus at an idle stop enter through the native paired lifecycle, then adopt it.
 - 2026-07-23T11:09:51+01:00 [CODE] Hold each stop's passenger-facing `BoardingVehicle` for the installed game's complete 16-frame resident update sweep, then rotate fairly. Do not filter full buses, because onboard passengers also require the pointer to exit.
@@ -143,6 +145,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-23T12:31:19+01:00 [TOOL] Prepared and committed version 1.2.0 changelog/Paradox metadata as `1055d5b`; policy, UI smoke, XML, whitespace, diff, package-content, and hash checks pass. Paradox `NewVersion` and `git push` were rejected before execution by the service usage limit, so no remote state changed.
 - 2026-07-23T11:52:34+01:00 [TOOL] Target-zone stop requesting passes policy, UI smoke, whitespace/diff, and official 1.6.0 Release checks with 0 warnings/errors. With Cities II closed, backed up and replaced all eight live package files; staged/live hashes match.
 - 2026-07-23T11:33:48+01:00 [TOOL] After the user closed Cities II, backed up the prior live package, installed the complete first-bus native-admission candidate, and verified all eight staged/live SHA-256 hashes.
 - 2026-07-23T11:29:05+01:00 [TOOL] First-bus native-admission correction passes policy, UI smoke, whitespace/diff, and official 1.6.0 Release checks with 0 warnings/errors. Cities II remains running, so deployment is pending.
@@ -294,6 +297,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-23T12:31:19+01:00 [TOOL] Version 1.2.0 is locally release-ready on `feature/crash-hardening`; exact package DLL SHA-256 is `F48BCF8D...B3A50`. GitHub push/PR/merge and Paradox mod `152153` publication remain pending because remote commands did not execute.
 - 2026-07-23T11:52:34+01:00 [TOOL] Live local package now contains the 54,272-byte `F48BCF8D...B3A50` target-zone stop-request DLL and seven matching companions. Rollback: `artifacts/pre-lead-stop-live-20260723-115214/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-23T11:33:48+01:00 [TOOL] Live local package now contains the 54,272-byte `5C1D91A0...FBAC` first-bus correction and seven matching companions. Rollback: `artifacts/pre-first-bus-native-live-20260723-113348/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-23T11:29:05+01:00 [TOOL] Corrected package staged at `artifacts/first-bus-native-20260723/ConcurrentBusBoarding`; DLL is 54,272 bytes, SHA-256 `5C1D91A07F0BE038AEB6705C721743B956637E2352A393CDC605BCFBDB47FBAC`. Source is committed as `73516c3`; live deployment and gameplay confirmation remain.
