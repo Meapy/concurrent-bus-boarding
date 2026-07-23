@@ -76,6 +76,10 @@ internal static class BoardingPolicyCheck
         Expect(start == 0.5f && end == 0.5f, "invalid custom lane has no boarding area");
         Expect(BoardingPolicy.RotationIndex(3, 0, 0) == 0, "rotation start");
         Expect(BoardingPolicy.RotationIndex(3, 1, 0) == 1, "rotation advance");
+        Expect(!BoardingPolicy.CanBeginSyntheticBoarding(0),
+            "first bus must use the native boarding lifecycle");
+        Expect(BoardingPolicy.CanBeginSyntheticBoarding(1),
+            "a following bus can use managed boarding");
         Expect(BoardingPolicy.PassengerSelectionTurn(0) == 0, "passenger selection starts at first sweep");
         Expect(BoardingPolicy.PassengerSelectionTurn(15) == 0,
             "passenger selection stays fixed for every resident partition");

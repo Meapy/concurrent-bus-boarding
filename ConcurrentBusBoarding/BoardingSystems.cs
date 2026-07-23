@@ -218,6 +218,8 @@ namespace ConcurrentBusBoarding
                     if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus) ||
                         EntityManager.HasComponent<BoardingZoneApproach>(bus))
                         continue;
+                    if (!BoardingPolicy.CanBeginSyntheticBoarding(activeBuses.Count))
+                        continue;
 
                     bool closeToStop = hasZone && BoardingHelpers.IsCloseToStop(EntityManager, bus, zone);
                     float speed = BoardingHelpers.GetSpeed(EntityManager, bus);

@@ -122,6 +122,11 @@ namespace ConcurrentBusBoarding
             return count <= 1 ? 0 : (int)((turn + salt) % (uint)count);
         }
 
+        internal static bool CanBeginSyntheticBoarding(int activeBusCount)
+        {
+            return activeBusCount > 0;
+        }
+
         internal static uint PassengerSelectionTurn(uint simulationFrame)
         {
             return simulationFrame / ResidentUpdateFrames;

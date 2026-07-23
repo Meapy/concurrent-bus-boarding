@@ -186,3 +186,22 @@ Verification:
   were verified. The replaced hardening/reset package is recoverable from
   `artifacts/pre-rear-boarding-live-20260723-1112/ConcurrentBusBoarding`.
 - Gameplay confirmation remains: test a full lead bus, a following bus with capacity, and unloading from both buses.
+
+### First-bus native admission correction (2026-07-23)
+
+The crash-hardening build could classify the first stopped bus at an idle stop as a synthetic session immediately before
+native vehicle AI ran. Synthetic state is intentionally hidden from `TransportCarAISystem` to prevent an unpaired
+native completion, so that first bus could resume driving instead of starting its vanilla boarding lifecycle.
+
+Synthetic admission now requires at least one already-active boarding bus at the stop. The first bus remains unmanaged
+until native vehicle AI begins boarding; the mod then adopts that paired native session on the next 16-frame update.
+Following stopped buses can still enter managed boarding once that lead session exists.
+
+Verification:
+
+- Policy checks cover both boundaries: zero active buses reject synthetic admission and one active bus permits it.
+- The UI production bundle, smoke check, whitespace verification, and `git diff --check` pass.
+- The official toolchain builds `artifacts/first-bus-native-20260723/ConcurrentBusBoarding` with 0 warnings and 0 errors.
+- The staged 54,272-byte DLL SHA-256 is
+  `5C1D91A07F0BE038AEB6705C721743B956637E2352A393CDC605BCFBDB47FBAC`.
+- Cities II is running, so the live package remains unchanged until the game closes.
