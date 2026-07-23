@@ -11,6 +11,7 @@ namespace ConcurrentBusBoarding
         internal const float PhysicalLaneCaptureDistance = 40f;
         internal const float MinimumCustomZoneLength = 6f;
         internal const float MaximumCustomZoneLength = 200f;
+        internal const uint ResidentUpdateFrames = 16u;
 
         internal static bool IsPullInLane(bool secondaryLane, bool splitsFromRoad, bool mergesIntoRoad,
             bool sameRoadLaneTransition)
@@ -121,10 +122,46 @@ namespace ConcurrentBusBoarding
             return count <= 1 ? 0 : (int)((turn + salt) % (uint)count);
         }
 
+        internal static bool CanBeginSyntheticBoarding(int activeBusCount)
+        {
+            return activeBusCount > 0;
+        }
+
+        internal static bool ShouldRequestStop(bool canAdmit, bool boarding)
+        {
+            return canAdmit && !boarding;
+        }
+
+        internal static uint PassengerSelectionTurn(uint simulationFrame)
+        {
+            return simulationFrame / ResidentUpdateFrames;
+        }
+
         internal static bool CanFinishBoarding(uint frame, uint departureFrame, float maxBoardingDistance,
             bool passengersReady)
         {
             return frame >= departureFrame && maxBoardingDistance == float.MaxValue && passengersReady;
+        }
+
+        internal static bool ShouldExposeBoardingToVehicleAi(bool usesNativeBoarding, bool selected)
+        {
+            return usesNativeBoarding && selected;
+        }
+
+        internal static bool ShouldCompleteManagedBoarding(bool usesNativeBoarding, bool selected)
+        {
+            return !usesNativeBoarding && selected;
+        }
+
+        internal static bool ShouldAdoptNativeBoarding(
+            bool usesNativeBoarding, bool selected, bool boardingAfterVehicleAi)
+        {
+            return !usesNativeBoarding && selected && boardingAfterVehicleAi;
+        }
+
+        internal static bool CanRestoreRoute(bool validRoute, bool validTarget, bool retiring)
+        {
+            return validRoute && validTarget && !retiring;
         }
 
         private static float Clamp(float value, float min, float max)

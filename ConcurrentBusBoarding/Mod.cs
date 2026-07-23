@@ -13,7 +13,7 @@ namespace ConcurrentBusBoarding
     {
         internal static readonly ILog Log = LogManager
             .GetLogger($"{nameof(ConcurrentBusBoarding)}.{nameof(Mod)}")
-            .SetShowsErrorsInUI(false);
+            .SetShowsErrorsInUI(true);
         internal static ConcurrentBusBoardingSettings Settings { get; private set; }
 
         public void OnLoad(UpdateSystem updateSystem)

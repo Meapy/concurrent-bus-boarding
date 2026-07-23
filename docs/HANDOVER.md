@@ -17,8 +17,9 @@ Version 1.1.0 is the published concurrent-boarding implementation for Cities: Sk
   transforms, and rotation. The registered systems never reposition a bus or rewrite its navigation endpoint.
 - A stopped bus whose centre is inside the zone can enter managed boarding. Ordinary automatic stops admit two buses;
   pull-ins use vehicle-length capacity; custom zones admit every contained stopped bus.
-- Active buses share the stop's native `BoardingVehicle` pointer round-robin so waiting residents can choose each bus
-  while the game retains route, fare, capacity, animation, and passenger-buffer behavior.
+- Active buses share the stop's native `BoardingVehicle` pointer round-robin. Each bus keeps the pointer for one complete
+  16-frame resident update sweep so every waiting-resident partition can try it before the next bus is selected, while
+  the game retains route, fare, capacity, animation, and passenger-buffer behavior.
 - Each admitted bus is physically held at its own queue position. The bus ahead leaving cannot pull it forward.
 - Concurrent admission requires the bus's native `CurrentRoute`, rejecting line-detached or orphaned save vehicles.
   The managed latch retains the route, and a bounded post-stop handoff restores a one-time removal after the latch ends
@@ -113,3 +114,147 @@ save with a missing custom-bus asset.
 For a local crash investigation, build with
 `dotnet build ConcurrentBusBoarding.slnx -c Release -p:CbbDiagnostics=true`. The diagnostic package writes the bounded,
 auto-flushed `Logs/ConcurrentBusBoarding-breadcrumbs.log`; never pass that property to the Paradox publishing build.
+
+### Crash hardening implementation (2026-07-23)
+
+The post-release audit findings are addressed in the current workspace. The exact verified package was deployed to the
+local `ConcurrentBusBoarding` Mods folder on 2026-07-23 while Cities II was closed; gameplay testing remains:
+
+- Mod logger errors now opt into the in-game error UI.
+- `ConcurrentBoardingActive` records whether the game or the mod began the boarding session. Synthetic sessions have
+  their `Boarding` flag cleared before `TransportCarAISystem`, so native `StopBoarding` cannot consume an unpaired
+  lifecycle. If vehicle AI begins boarding during that tick, the mod detects the returned flag and adopts the now-native
+  session instead of using managed completion.
+- Managed route preservation now requires a live route, a live target waypoint owned by that route, matching waypoint
+  index/buffer membership, an unchanged `CurrentRoute` when present, and a normal active transport state. Returning,
+  evacuating, prisoner transport, maintenance, refueling, abandon-route, dummy-traffic, disabled, out-of-control,
+  deleted, temporary, and route-reassigned buses are released without restoring the captured route.
+- Synthetic cleanup clears only synthetic boarding state and only stop-slot references still owned by that bus. Native
+  sessions are released without fabricating native cleanup.
+- Manual next-waypoint advancement validates both the current and next waypoint before calling `VehicleUtils.SetTarget`.
+- Stop, bus, prefab, and render-cache reads reject deleted/temporary entities. The overlay validates every lane piece,
+  curve sample, bound, width, and saved custom length before drawing; it skips zero-length primitives and evicts stale
+  geometry. Map dragging also rejects non-finite pointer positions and lengths.
+- The global settings page has a confirmation-protected **Reset all customized zones** button. Its setter only queues
+  the request; `BoardingZoneEditorUISystem` performs the structural ECS removal on its own update, removes every live
+  `BoardingZoneOverride` in the current city, and invalidates the overlay.
+
+Broad `try/catch` blocks were deliberately not added around simulation updates. A caught exception after partial ECS
+mutation could leave more dangerous state behind, and managed catches cannot intercept Burst/native access violations.
+The hardening instead prevents the invalid states found by the audit; the game remains responsible for surfacing
+managed system exceptions, and the mod logger is configured to show its own errors in the UI.
+
+Verification:
+
+- Dependency-free boarding policy checks pass, including native/synthetic ownership and route-restoration assertions.
+- Webpack 5.97.1 production UI build and zone-editor smoke check pass.
+- Whitespace verification and `git diff --check` pass.
+- The official Cities: Skylines II 1.6.0 toolchain builds the isolated
+  `artifacts/hardening-20260723/ConcurrentBusBoarding` package with 0 warnings and 0 errors.
+- The staged 54,272-byte DLL SHA-256 is
+  `898DF2E4FF1C4AC227F095EA21B4520235379DEA1495835540305B02F3F7D6E0`.
+- All eight staged/live file hashes match. The replaced diagnostic-v6 package is recoverable from
+  `artifacts/pre-hardening-live-20260723-1029/ConcurrentBusBoarding`.
+
+Before release, gameplay-test concurrent native and synthetic followers, depot return, route abandonment/reassignment,
+deleting an active stop, and a save with a missing custom-bus asset. Confirm both boarding behavior and route-panel
+persistence. Also toggle selected/all-stop overlays, edit a zone, and delete or rebuild roads while overlays are visible
+to confirm stale zones disappear without rendering errors. Create several custom zones, cancel the global reset once,
+then confirm it and verify that all zones return to automatic sizing and remain automatic after save/reload.
+
+### Rear-bus passenger retry hardening (2026-07-23)
+
+Installed Cities: Skylines II 1.6.0 IL confirms that `ResidentAISystem` updates residents in 16 fixed frame partitions.
+For a waiting resident, `RouteUtils.GetBoardingVehicle` supplies only the stop's single advertised vehicle; if
+`BoardingJob.TryFindVehicle` finds that vehicle full, it returns no vehicle and does not try another active bus.
+Previously, the mod changed the advertised bus every frame. A resident in one fixed partition could therefore always
+sample the full lead bus while a following bus was advertised only on other partitions.
+
+`PassengerDistributionSystem` now derives its rotation turn from `simulationFrame / 16`. Each active bus owns the
+passenger-facing stop slot for a complete native resident sweep before rotation advances. The rotation still includes
+full buses so their onboard passengers retain a complete sweep in which to exit.
+
+Verification:
+
+- Policy checks prove that all frames 0-15 select the first bus and all frames 16-31 select the following bus.
+- The UI production bundle and zone-editor smoke check pass.
+- Whitespace verification and `git diff --check` pass.
+- The official toolchain builds `artifacts/rear-boarding-20260723/ConcurrentBusBoarding` with 0 warnings and 0 errors.
+- The staged 54,272-byte DLL SHA-256 is
+  `403501CDD3DB9E12B2C756BE8666978E4CE9071BBB4464ACA0E2981276157AF9`.
+- After Cities II closed, all eight staged files were copied to the live local Mods package and their SHA-256 hashes
+  were verified. The replaced hardening/reset package is recoverable from
+  `artifacts/pre-rear-boarding-live-20260723-1112/ConcurrentBusBoarding`.
+- Gameplay confirmation remains: test a full lead bus, a following bus with capacity, and unloading from both buses.
+
+### First-bus native admission correction (2026-07-23)
+
+The crash-hardening build could classify the first stopped bus at an idle stop as a synthetic session immediately before
+native vehicle AI ran. Synthetic state is intentionally hidden from `TransportCarAISystem` to prevent an unpaired
+native completion, so that first bus could resume driving instead of starting its vanilla boarding lifecycle.
+
+Synthetic admission now requires at least one already-active boarding bus at the stop. The first bus remains unmanaged
+until native vehicle AI begins boarding; the mod then adopts that paired native session on the next 16-frame update.
+Following stopped buses can still enter managed boarding once that lead session exists.
+
+Verification:
+
+- Policy checks cover both boundaries: zero active buses reject synthetic admission and one active bus permits it.
+- The UI production bundle, smoke check, whitespace verification, and `git diff --check` pass.
+- The official toolchain builds `artifacts/first-bus-native-20260723/ConcurrentBusBoarding` with 0 warnings and 0 errors.
+- The staged 54,272-byte DLL SHA-256 is
+  `5C1D91A07F0BE038AEB6705C721743B956637E2352A393CDC605BCFBDB47FBAC`.
+- After Cities II closed, all eight staged files were copied to the live local Mods package and their SHA-256 hashes
+  were verified. The replaced package is recoverable from
+  `artifacts/pre-first-bus-native-live-20260723-113348/ConcurrentBusBoarding`.
+- Gameplay confirmation remains: verify that an empty first bus stops and enters native boarding, then that a stopped
+  follower boards concurrently and receives passengers when the lead bus is full.
+
+### Target-zone stop request (2026-07-23)
+
+Gameplay showed that an empty first bus could still pass a stop with waiting passengers: its target changed to the next
+waypoint as it reached the stop. Installed 1.6.0 IL shows that residents normally set
+`PublicTransportFlags.RequireStop`, but resident and vehicle AI update independently. If no resident partition marks
+the approaching bus before vehicle AI reaches the waypoint, native AI can advance it without starting boarding.
+
+`ConcurrentBoardingSystem` now sets that same native `RequireStop` flag when an unmanaged bus is inside its target
+stop's valid boarding zone and the zone has admission capacity. It does not alter navigation, movement, transforms, or
+the target waypoint. The first bus still enters the paired native boarding lifecycle; a stopped follower still uses
+managed admission only after a lead session exists.
+
+Verification:
+
+- Policy checks cover eligible, out-of-zone/full-zone, and already-boarding stop-request decisions.
+- The UI production bundle and zone-editor smoke check pass.
+- Whitespace verification and `git diff --check` pass.
+- The official toolchain builds `artifacts/lead-bus-require-stop-20260723/ConcurrentBusBoarding` with 0 warnings and
+  0 errors.
+- The staged and live 54,272-byte DLL SHA-256 is
+  `F48BCF8D1706D3921EA3AE87430EA4596FA2351B3CCD170FD040BCCB0A4B3A50`.
+- All eight staged files were copied to the live local Mods package and verified byte-for-byte. The replaced package
+  is recoverable from `artifacts/pre-lead-stop-live-20260723-115214/ConcurrentBusBoarding`.
+- Gameplay confirmation remains: verify that an empty first bus stops for waiting passengers, then verify a follower
+  behind a full lead bus also stops and boards.
+
+### Version 1.2.0 release preparation (2026-07-23)
+
+The user authorized pushing, merging, and publishing the complete `feature/crash-hardening` branch. `CHANGELOG.md`
+and `Properties/PublishConfiguration.xml` now identify version 1.2.0 and summarize crash hardening, safe zone
+rendering, the global zone reset, full-sweep rear-bus passenger selection, native first-bus admission, and target-stop
+requests.
+
+Release input:
+
+- Source metadata commit: `1055d5b` (`Release Concurrent Bus Boarding 1.2.0`).
+- Verified package: `artifacts/lead-bus-require-stop-20260723/ConcurrentBusBoarding`.
+- Managed DLL: 54,272 bytes, SHA-256
+  `F48BCF8D1706D3921EA3AE87430EA4596FA2351B3CCD170FD040BCCB0A4B3A50`.
+- All eight package hashes were re-read successfully; required DLL, MJS, CSS, and three platform libraries are present.
+- Policy checks, XML parsing, `git diff --check`, UI production build/smoke test, and whitespace verification pass.
+- A fresh duplicate build was not run because the execution service rejected the elevated toolchain command for usage
+  limits. The selected package is the already verified official-toolchain build of the exact runtime commit
+  `99d82e6`; release metadata does not change packaged binaries.
+
+Remote state is unchanged. The official Paradox `NewVersion` upload and `git push` were each rejected before execution
+by the execution service's usage limit. Do not record version 1.2.0 as public until the branch is pushed, its PR is
+merged, the exact package above is accepted by ModPublisher, and both GitHub and public mod `152153` are verified.

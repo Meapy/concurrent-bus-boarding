@@ -13,6 +13,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & "$output\BoardingPolicyCheck.exe"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $boardingSystems = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingSystems.cs"
+$settings = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoardingSettings.cs"
+$zoneEditor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneEditorUISystem.cs"
 $project = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoarding.csproj"
 $breadcrumbs = Get-Content -Raw "$root\ConcurrentBusBoarding\CrashBreadcrumbs.cs"
 if ($boardingSystems -notmatch 'm_DepartureFrame = math\.max' -or
@@ -76,4 +78,11 @@ if ($project -notmatch 'CbbDiagnostics' -or
     $breadcrumbs -notmatch '\[Conditional\("CBB_DIAGNOSTICS"\)\][\s\S]*?void Write\(' -or
     $breadcrumbs -notmatch '\[Conditional\("CBB_DIAGNOSTICS"\)\][\s\S]*?void Stop\(') {
     throw 'Crash breadcrumbs must remain opt-in for local diagnostic builds only.'
+}
+if ($settings -notmatch '\[SettingsUIButton\][\s\S]*?\[SettingsUIConfirmation' -or
+    $settings -notmatch 'public bool ResetAllZones' -or
+    $settings -notmatch 'RequestResetAllZones\(\)' -or
+    $zoneEditor -notmatch 'ComponentType\.ReadOnly<BoardingZoneOverride>\(\)' -or
+    $zoneEditor -notmatch 'RemoveComponent<BoardingZoneOverride>\(m_ZoneOverrides\)') {
+    throw 'The confirmed global reset must remove every live per-stop zone override through the UI system.'
 }

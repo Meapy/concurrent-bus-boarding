@@ -27,6 +27,7 @@ namespace ConcurrentBusBoarding
         private BoardingZoneToolSystem m_ZoneTool;
         private SelectedInfoUISystem m_SelectedInfo;
         private Dictionary<Entity, BoardingZone> m_Zones = new Dictionary<Entity, BoardingZone>();
+        private readonly List<Entity> m_StaleZones = new List<Entity>();
         private int m_RefreshIn;
 
         [Preserve]
@@ -54,6 +55,15 @@ namespace ConcurrentBusBoarding
             // ponytail: refresh periodically instead of tracking every network edit; the overlay may lag by at most one second.
             if (m_RefreshIn-- <= 0)
             {
+                m_StaleZones.Clear();
+                foreach (KeyValuePair<Entity, BoardingZone> entry in m_Zones)
+                {
+                    if (!BoardingHelpers.IsRenderableZone(EntityManager, entry.Key, entry.Value))
+                        m_StaleZones.Add(entry.Key);
+                }
+                foreach (Entity stop in m_StaleZones)
+                    m_Zones.Remove(stop);
+
                 Dictionary<Entity, BoardingZone> observed = BoardingHelpers.FindObservedZones(EntityManager, m_Buses);
                 foreach (KeyValuePair<Entity, BoardingZone> entry in observed)
                 {
@@ -83,8 +93,7 @@ namespace ConcurrentBusBoarding
         private void DrawZone(OverlayRenderSystem.Buffer buffer, Entity stop)
         {
             if (stop == Entity.Null || !m_Zones.TryGetValue(stop, out BoardingZone zone) ||
-                !EntityManager.Exists(stop) || !EntityManager.HasComponent<Game.Routes.BoardingVehicle>(stop) ||
-                !EntityManager.Exists(zone.Lane))
+                !BoardingHelpers.IsRenderableZone(EntityManager, stop, zone))
                 return;
             BoardingHelpers.ApplyOverride(EntityManager, stop, ref zone);
 
@@ -95,8 +104,10 @@ namespace ConcurrentBusBoarding
             foreach (BoardingZonePiece piece in zone.Pieces)
             {
                 float2 bounds = BoardingHelpers.TrimFromFront(piece, remaining);
-                buffer.DrawCurve(color, MathUtils.Cut(piece.Curve.m_Bezier, bounds), piece.Width);
-                remaining -= BoardingHelpers.PieceLength(piece);
+                float pieceLength = BoardingHelpers.PieceLength(piece);
+                if (pieceLength > 0.01f && bounds.y - bounds.x > 0.0001f)
+                    buffer.DrawCurve(color, MathUtils.Cut(piece.Curve.m_Bezier, bounds), piece.Width);
+                remaining -= pieceLength;
                 if (remaining <= 0f)
                     break;
             }
@@ -118,9 +129,16 @@ namespace ConcurrentBusBoarding
 
         internal bool TryGetObservedZone(Entity stop, out BoardingZone zone)
         {
-            if (!m_Zones.TryGetValue(stop, out zone))
+            if (m_Zones.TryGetValue(stop, out zone) &&
+                !BoardingHelpers.IsRenderableZone(EntityManager, stop, zone))
             {
-                if (!BoardingHelpers.TryGetStopZone(EntityManager, stop, out zone))
+                m_Zones.Remove(stop);
+                zone = default;
+            }
+            if (!m_Zones.ContainsKey(stop))
+            {
+                if (!BoardingHelpers.TryGetStopZone(EntityManager, stop, out zone) ||
+                    !BoardingHelpers.IsRenderableZone(EntityManager, stop, zone))
                     return false;
                 m_Zones[stop] = zone;
             }
