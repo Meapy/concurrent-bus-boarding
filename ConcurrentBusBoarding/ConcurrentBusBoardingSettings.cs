@@ -22,6 +22,12 @@ namespace ConcurrentBusBoarding
         public bool OnlyShowSelectedStop { get; set; }
 
         [SettingsUISection(MainSection, DisplayGroup)]
+        public bool UseDefaultOverlayColor { get; set; }
+
+        [SettingsUISection(MainSection, DisplayGroup)]
+        public string DefaultOverlayColorHex { get; set; }
+
+        [SettingsUISection(MainSection, DisplayGroup)]
         [SettingsUIButton]
         [SettingsUIConfirmation(null,
             "Reset every customized bus boarding zone in the current city? This cannot be undone.")]
@@ -30,7 +36,12 @@ namespace ConcurrentBusBoarding
             set => BoardingZoneEditorUISystem.RequestResetAllZones();
         }
 
-        public override void SetDefaults() => OnlyShowSelectedStop = true;
+        public override void SetDefaults()
+        {
+            OnlyShowSelectedStop = true;
+            UseDefaultOverlayColor = true;
+            DefaultOverlayColorHex = "#2f8fe8";
+        }
     }
 
     internal sealed class SettingsLocale : IDictionarySource
@@ -54,6 +65,14 @@ namespace ConcurrentBusBoarding
                     "Only show the selected stop" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.OnlyShowSelectedStop)),
                     "Hide boarding-zone overlays until a bus stop is selected. The zone remains visible while editing it on the map." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.UseDefaultOverlayColor)),
+                    "Use custom default overlay color" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.UseDefaultOverlayColor)),
+                    "Enable a custom default tint for boarding-zone overlays. Individual bus stops can override this color." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.DefaultOverlayColorHex)),
+                    "Default overlay color" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.DefaultOverlayColorHex)),
+                    "Choose the default tint used for boarding-zone overlays. Individual bus stops can override this color." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
                     "Reset all customized zones" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),

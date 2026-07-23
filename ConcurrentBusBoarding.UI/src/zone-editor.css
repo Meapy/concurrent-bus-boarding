@@ -13,3 +13,12 @@
   font-size: 16rem;
   text-transform: none;
 }
+
+.colorInput {
+  width: 48rem;
+  height: 24rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}

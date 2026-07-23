@@ -8,7 +8,8 @@ const zoneEditor$ = bindValue("ConcurrentBusBoarding", "zoneEditor", {
   customized: false,
   editing: false,
   offset: 0,
-  length: 26
+  length: 26,
+  color: "#2f8fe8"
 });
 const selectedInfoSectionsModule = "game-ui/game/components/selected-info-panel/selected-info-sections/selected-info-sections.tsx";
 const linesSectionType = "Game.UI.InGame.LinesSection";
@@ -35,14 +36,31 @@ export default function register(moduleRegistry) {
     const LinesSectionWithEditor = (props) => {
       const zone = useValue(zoneEditor$);
       const [length, setLength] = React.useState(zone.length ?? 26);
+      const [color, setColor] = React.useState(parseColor(zone.color));
       const oneMetreSteps = useStepTransformer(1);
 
       React.useEffect(() => {
         setLength(zone.length ?? 26);
-      }, [zone.length, zone.customized]);
+        setColor(parseColor(zone.color));
+      }, [zone.length, zone.customized, zone.color]);
       const changeLength = (value) => {
         setLength(value);
         trigger("ConcurrentBusBoarding", "setZone", 0, value);
+      };
+      const changeColor = (event) => {
+        const next = [0, 0, 0, 1];
+        const raw = event.target.value;
+        if (raw) {
+          const hex = raw.replace('#', '');
+          const normalized = hex.length === 3 ? hex.split('').map((part) => part + part).join('') : hex;
+          if (normalized.length === 6) {
+            next[0] = parseInt(normalized.slice(0, 2), 16) / 255;
+            next[1] = parseInt(normalized.slice(2, 4), 16) / 255;
+            next[2] = parseInt(normalized.slice(4, 6), 16) / 255;
+          }
+        }
+        setColor(next);
+        trigger("ConcurrentBusBoarding", "setZoneColor", next[0], next[1], next[2], 0.28);
       };
       const reset = () => trigger("ConcurrentBusBoarding", "resetZone");
       const toggleEditing = () => trigger("ConcurrentBusBoarding", "toggleZoneEditing");
@@ -87,6 +105,16 @@ export default function register(moduleRegistry) {
             }),
             React.createElement(InfoRow, {
               disableFocus: true,
+              left: "Overlay color",
+              right: React.createElement("input", {
+                className: styles.colorInput,
+                type: "text",
+                value: color && color.length >= 3 ? rgbToHex(color[0], color[1], color[2]) : "#2f8fe8",
+                onChange: changeColor
+              })
+            }),
+            React.createElement(InfoRow, {
+              disableFocus: true,
               left: "Map editing",
               right: React.createElement(Button, {
                 theme: secondaryButtonTheme,
@@ -120,6 +148,26 @@ export default function register(moduleRegistry) {
 
     LinesSectionWithEditor[editorMarker] = true;
     return LinesSectionWithEditor;
+  };
+
+  const parseColor = (value) => {
+    if (Array.isArray(value))
+      return value;
+    if (typeof value === "string" && value.startsWith("#")) {
+      const hex = value.replace("#", "");
+      if (hex.length === 6) {
+        return [
+          parseInt(hex.slice(0, 2), 16) / 255,
+          parseInt(hex.slice(2, 4), 16) / 255,
+          parseInt(hex.slice(4, 6), 16) / 255
+        ];
+      }
+    }
+    return [0.15, 0.55, 0.95];
+  };
+  const rgbToHex = (r, g, b) => {
+    const toHex = (value) => Math.max(0, Math.min(255, Math.round(value * 255))).toString(16).padStart(2, "0");
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   };
 
   moduleRegistry.extend(selectedInfoSectionsModule, "selectedInfoSectionComponents", (components) => {

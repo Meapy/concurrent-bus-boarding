@@ -97,7 +97,7 @@ namespace ConcurrentBusBoarding
                 return;
             BoardingHelpers.ApplyOverride(EntityManager, stop, ref zone);
 
-            UnityColor color = zone.IsPullIn && !zone.IsCustom ? PullInColor : OrdinaryColor;
+            UnityColor color = ResolveOverlayColor(stop, zone);
             float remaining = BoardingHelpers.GetRequestedZoneLength(zone);
             if (zone.Pieces == null)
                 return;
@@ -114,6 +114,56 @@ namespace ConcurrentBusBoarding
             if (m_ZoneTool.EditingStop == stop &&
                 BoardingHelpers.TryGetRearEdge(zone, out BoardingZonePiece rearPiece, out float2 rearBounds))
                 DrawEndHandles(buffer, rearPiece, rearPiece.Direction >= 0 ? rearBounds.x : rearBounds.y);
+        }
+
+        private UnityColor ResolveOverlayColor(Entity stop, BoardingZone zone)
+        {
+            if (Mod.Settings != null)
+            {
+                if (TryGetStopOverlayColor(stop, out UnityColor stopColor))
+                    return stopColor;
+                if (Mod.Settings.UseDefaultOverlayColor)
+                    return ParseHexColor(Mod.Settings.DefaultOverlayColorHex);
+            }
+            return zone.IsPullIn && !zone.IsCustom ? PullInColor : OrdinaryColor;
+        }
+
+        private static UnityColor ParseHexColor(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                value = "#2f8fe8";
+            string hex = value.Trim();
+            if (hex.StartsWith("#"))
+                hex = hex.Substring(1);
+            if (hex.Length == 3)
+            {
+                char[] expanded = new char[6];
+                for (int i = 0; i < 3; i++)
+                {
+                    expanded[i * 2] = hex[i];
+                    expanded[i * 2 + 1] = hex[i];
+                }
+                hex = new string(expanded);
+            }
+            if (hex.Length == 6 && int.TryParse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber, null, out int r) &&
+                int.TryParse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out int g) &&
+                int.TryParse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out int b))
+                return new UnityColor(r / 255f, g / 255f, b / 255f, 0.28f);
+            return new UnityColor(0.15f, 0.55f, 0.95f, 0.28f);
+        }
+
+        private bool TryGetStopOverlayColor(Entity stop, out UnityColor color)
+        {
+            color = default;
+            if (stop == Entity.Null || !EntityManager.Exists(stop))
+                return false;
+            if (!EntityManager.HasComponent<BoardingZoneOverride>(stop))
+                return false;
+            BoardingZoneOverride overrideData = EntityManager.GetComponentData<BoardingZoneOverride>(stop);
+            if (overrideData.m_Color == default)
+                return false;
+            color = overrideData.m_Color;
+            return true;
         }
 
         private static void DrawEndHandles(OverlayRenderSystem.Buffer buffer, BoardingZonePiece piece, float curvePosition)

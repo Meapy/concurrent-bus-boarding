@@ -1,3 +1,4 @@
+using System;
 using Colossal.UI.Binding;
 using Game;
 using Game.Common;
@@ -8,6 +9,7 @@ using Game.UI.InGame;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine.Scripting;
+using UnityColor = UnityEngine.Color;
 
 namespace ConcurrentBusBoarding
 {
@@ -41,6 +43,8 @@ namespace ConcurrentBusBoarding
             AddUpdateBinding(new RawValueBinding(BindingGroup, "zoneEditor", WriteEditor));
             AddBinding(new TriggerBinding<float, float>(BindingGroup, "setZone", SetZone,
                 ValueReaders.Create<float>(), ValueReaders.Create<float>()));
+            AddBinding(new TriggerBinding<float, float, float, float>(BindingGroup, "setZoneColor", SetZoneColor,
+                ValueReaders.Create<float>(), ValueReaders.Create<float>(), ValueReaders.Create<float>(), ValueReaders.Create<float>()));
             AddBinding(new TriggerBinding(BindingGroup, "resetZone", ResetZone));
             AddBinding(new TriggerBinding(BindingGroup, "toggleZoneEditing", ToggleZoneEditing));
         }
@@ -97,6 +101,8 @@ namespace ConcurrentBusBoarding
             writer.Write(0f);
             writer.PropertyName("length");
             writer.Write(length);
+            writer.PropertyName("color");
+            writer.Write(GetEditorColor(stop, available, visible));
             writer.TypeEnd();
         }
 
@@ -105,13 +111,77 @@ namespace ConcurrentBusBoarding
             if (!TryGetSelectedStop(out Entity stop) || !m_RenderSystem.TryGetObservedZone(stop, out _))
                 return;
 
-            var custom = new BoardingZoneOverride(0f,
-                math.clamp(length, BoardingPolicy.MinimumCustomZoneLength, BoardingPolicy.MaximumCustomZoneLength));
+            BoardingZoneOverride custom = EntityManager.HasComponent<BoardingZoneOverride>(stop)
+                ? EntityManager.GetComponentData<BoardingZoneOverride>(stop)
+                : new BoardingZoneOverride(0f, BoardingPolicy.OrdinaryZoneLength);
+            custom.m_Offset = 0f;
+            custom.m_Length = math.clamp(length, BoardingPolicy.MinimumCustomZoneLength,
+                BoardingPolicy.MaximumCustomZoneLength);
             if (EntityManager.HasComponent<BoardingZoneOverride>(stop))
                 EntityManager.SetComponentData(stop, custom);
             else
                 EntityManager.AddComponentData(stop, custom);
             Refresh();
+        }
+
+        private void SetZoneColor(float r, float g, float b, float a)
+        {
+            if (!TryGetSelectedStop(out Entity stop) || !m_RenderSystem.TryGetObservedZone(stop, out _))
+                return;
+
+            BoardingZoneOverride custom = EntityManager.HasComponent<BoardingZoneOverride>(stop)
+                ? EntityManager.GetComponentData<BoardingZoneOverride>(stop)
+                : new BoardingZoneOverride(0f, BoardingPolicy.OrdinaryZoneLength);
+            custom.m_Color = new UnityColor(r, g, b, a);
+            if (EntityManager.HasComponent<BoardingZoneOverride>(stop))
+                EntityManager.SetComponentData(stop, custom);
+            else
+                EntityManager.AddComponentData(stop, custom);
+            Refresh();
+        }
+
+        private string GetEditorColor(Entity stop, bool available, bool visible)
+        {
+            if (visible && EntityManager.HasComponent<BoardingZoneOverride>(stop))
+            {
+                BoardingZoneOverride custom = EntityManager.GetComponentData<BoardingZoneOverride>(stop);
+                return ToHexColor(custom.m_Color);
+            }
+            if (Mod.Settings?.UseDefaultOverlayColor == true)
+                return ToHexColor(ParseHexColor(Mod.Settings.DefaultOverlayColorHex));
+            return available ? ToHexColor(new UnityColor(0.15f, 0.55f, 0.95f, 0.28f)) : "#2f8fe8";
+        }
+
+        private static string ToHexColor(UnityColor color)
+        {
+            int r = math.clamp((int)Math.Round(color.r * 255f), 0, 255);
+            int g = math.clamp((int)Math.Round(color.g * 255f), 0, 255);
+            int b = math.clamp((int)Math.Round(color.b * 255f), 0, 255);
+            return $"#{r:X2}{g:X2}{b:X2}";
+        }
+
+        private static UnityColor ParseHexColor(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                value = "#2f8fe8";
+            string hex = value.Trim();
+            if (hex.StartsWith("#"))
+                hex = hex.Substring(1);
+            if (hex.Length == 3)
+            {
+                char[] expanded = new char[6];
+                for (int i = 0; i < 3; i++)
+                {
+                    expanded[i * 2] = hex[i];
+                    expanded[i * 2 + 1] = hex[i];
+                }
+                hex = new string(expanded);
+            }
+            if (hex.Length == 6 && int.TryParse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber, null, out int r) &&
+                int.TryParse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out int g) &&
+                int.TryParse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out int b))
+                return new UnityColor(r / 255f, g / 255f, b / 255f, 0.28f);
+            return new UnityColor(0.15f, 0.55f, 0.95f, 0.28f);
         }
 
         private void ResetZone()

@@ -26,9 +26,14 @@ namespace ConcurrentBusBoarding
 
             Settings = new ConcurrentBusBoardingSettings(this);
             Settings.RegisterInOptionsUI();
+            ColorPickerSettings colorPickerSettings = new ColorPickerSettings(this);
+            colorPickerSettings.RegisterInOptionsUI();
             GameManager.instance.localizationManager.AddSource("en-US", new SettingsLocale(Settings));
+            GameManager.instance.localizationManager.AddSource("en-US", new ColorPickerLocale(colorPickerSettings));
             AssetDatabase.global.LoadSettings("ConcurrentBusBoarding", Settings,
                 new ConcurrentBusBoardingSettings(this));
+            AssetDatabase.global.LoadSettings("ConcurrentBusBoarding.Color", colorPickerSettings,
+                new ColorPickerSettings(this));
             CrashBreadcrumbs.Write("mod-onload after-settings");
             // ponytail: no approach/front-position or passenger-spread system; native traffic owns movement.
             updateSystem.UpdateBefore<ConcurrentBoardingSystem, TransportCarAISystem>(SystemUpdatePhase.GameSimulation);
