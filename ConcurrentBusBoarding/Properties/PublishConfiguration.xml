@@ -13,6 +13,7 @@ FEATURES
 - Waiting passengers are offered to active buses in round-robin order while the game keeps its normal route, fare, animation, and capacity checks.
 - Every served bus stop has a length control plus draggable rear-edge map handles for resizing its boarding zone.
 - Per-stop edits save with the city and can be reset to automatic detection at any time.
+- Options includes a confirmed action that resets every customized zone in the current city.
 - Boarding-zone overlays show only for the selected stop by default; this can be changed in Options.
 
 HOW TO EDIT A STOP
@@ -30,9 +31,9 @@ Only passenger buses are changed. Other public transport and cargo vehicles keep
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.1.0" />
+	<ModVersion Value="1.2.0" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Adds stable simultaneous boarding for buses queued behind one another. Boarding buses remain stopped until their own passenger work finishes, then continue directly to the next stop. Boarding zones now extend rearward from the fixed stop position, support connected lane segments, and correctly retain detected pull-in lanes. Release diagnostics have been removed." />
+	<ChangeLog Value="Hardens native and managed boarding lifecycles, validates route and zone data before use, and shows mod errors in the in-game error UI. Waiting passengers now retry buses behind a full lead bus, eligible buses no longer skip their target stop, and Options includes a confirmed action to reset every customized zone in the current city." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />
