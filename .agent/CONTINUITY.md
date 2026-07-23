@@ -290,7 +290,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
-- 2026-07-23T11:29:05+01:00 [TOOL] Corrected package staged at `artifacts/first-bus-native-20260723/ConcurrentBusBoarding`; DLL is 54,272 bytes, SHA-256 `5C1D91A07F0BE038AEB6705C721743B956637E2352A393CDC605BCFBDB47FBAC`. Commit, live deployment, and gameplay confirmation remain.
+- 2026-07-23T11:29:05+01:00 [TOOL] Corrected package staged at `artifacts/first-bus-native-20260723/ConcurrentBusBoarding`; DLL is 54,272 bytes, SHA-256 `5C1D91A07F0BE038AEB6705C721743B956637E2352A393CDC605BCFBDB47FBAC`. Source is committed as `73516c3`; live deployment and gameplay confirmation remain.
 - 2026-07-23T11:11:55+01:00 [TOOL] The live local package now contains the 54,272-byte rear-boarding DLL `403501CD...7AF9` and seven matching companions. Rollback: `artifacts/pre-rear-boarding-live-20260723-1112/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-23T11:09:51+01:00 [TOOL] Rear-bus retry candidate staged at `artifacts/rear-boarding-20260723/ConcurrentBusBoarding`; DLL is 54,272 bytes, SHA-256 `403501CDD3DB9E12B2C756BE8666978E4CE9071BBB4464ACA0E2981276157AF9`. Live deployment and gameplay confirmation remain because Cities II is running.
 - 2026-07-23T10:36:00+01:00 [TOOL] The 54,272-byte `898DF2E4...D6E0` hardening/reset DLL and its seven matching package companions are installed locally for testing. Rollback copy: `artifacts/pre-hardening-live-20260723-1029/ConcurrentBusBoarding`. A game restart and the documented gameplay/save-reset matrix remain.
