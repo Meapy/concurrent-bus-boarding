@@ -113,3 +113,44 @@ save with a missing custom-bus asset.
 For a local crash investigation, build with
 `dotnet build ConcurrentBusBoarding.slnx -c Release -p:CbbDiagnostics=true`. The diagnostic package writes the bounded,
 auto-flushed `Logs/ConcurrentBusBoarding-breadcrumbs.log`; never pass that property to the Paradox publishing build.
+
+### Crash hardening implementation (2026-07-23)
+
+The post-release audit findings are addressed in the current workspace, but this package has not been deployed or
+gameplay-tested:
+
+- Mod logger errors now opt into the in-game error UI.
+- `ConcurrentBoardingActive` records whether the game or the mod began the boarding session. Synthetic sessions have
+  their `Boarding` flag cleared before `TransportCarAISystem`, so native `StopBoarding` cannot consume an unpaired
+  lifecycle. If vehicle AI begins boarding during that tick, the mod detects the returned flag and adopts the now-native
+  session instead of using managed completion.
+- Managed route preservation now requires a live route, a live target waypoint owned by that route, matching waypoint
+  index/buffer membership, an unchanged `CurrentRoute` when present, and a normal active transport state. Returning,
+  evacuating, prisoner transport, maintenance, refueling, abandon-route, dummy-traffic, disabled, out-of-control,
+  deleted, temporary, and route-reassigned buses are released without restoring the captured route.
+- Synthetic cleanup clears only synthetic boarding state and only stop-slot references still owned by that bus. Native
+  sessions are released without fabricating native cleanup.
+- Manual next-waypoint advancement validates both the current and next waypoint before calling `VehicleUtils.SetTarget`.
+- Stop, bus, prefab, and render-cache reads reject deleted/temporary entities. The overlay validates every lane piece,
+  curve sample, bound, width, and saved custom length before drawing; it skips zero-length primitives and evicts stale
+  geometry. Map dragging also rejects non-finite pointer positions and lengths.
+
+Broad `try/catch` blocks were deliberately not added around simulation updates. A caught exception after partial ECS
+mutation could leave more dangerous state behind, and managed catches cannot intercept Burst/native access violations.
+The hardening instead prevents the invalid states found by the audit; the game remains responsible for surfacing
+managed system exceptions, and the mod logger is configured to show its own errors in the UI.
+
+Verification:
+
+- Dependency-free boarding policy checks pass, including native/synthetic ownership and route-restoration assertions.
+- Webpack 5.97.1 production UI build and zone-editor smoke check pass.
+- Whitespace verification and `git diff --check` pass.
+- The official Cities: Skylines II 1.6.0 toolchain builds the isolated
+  `artifacts/hardening-20260723/ConcurrentBusBoarding` package with 0 warnings and 0 errors.
+- The staged 53,248-byte DLL SHA-256 is
+  `5A0AC0FC6C0B91D8CF041F1F3619CCF38490A934910583D7EE1330F6EFECC05E`.
+
+Before release, gameplay-test concurrent native and synthetic followers, depot return, route abandonment/reassignment,
+deleting an active stop, and a save with a missing custom-bus asset. Confirm both boarding behavior and route-panel
+persistence. Also toggle selected/all-stop overlays, edit a zone, and delete or rebuild roads while overlays are visible
+to confirm stale zones disappear without rendering errors.

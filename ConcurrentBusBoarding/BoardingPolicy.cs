@@ -127,6 +127,27 @@ namespace ConcurrentBusBoarding
             return frame >= departureFrame && maxBoardingDistance == float.MaxValue && passengersReady;
         }
 
+        internal static bool ShouldExposeBoardingToVehicleAi(bool usesNativeBoarding, bool selected)
+        {
+            return usesNativeBoarding && selected;
+        }
+
+        internal static bool ShouldCompleteManagedBoarding(bool usesNativeBoarding, bool selected)
+        {
+            return !usesNativeBoarding && selected;
+        }
+
+        internal static bool ShouldAdoptNativeBoarding(
+            bool usesNativeBoarding, bool selected, bool boardingAfterVehicleAi)
+        {
+            return !usesNativeBoarding && selected && boardingAfterVehicleAi;
+        }
+
+        internal static bool CanRestoreRoute(bool validRoute, bool validTarget, bool retiring)
+        {
+            return validRoute && validTarget && !retiring;
+        }
+
         private static float Clamp(float value, float min, float max)
         {
             return value < min ? min : value > max ? max : value;

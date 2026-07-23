@@ -54,6 +54,7 @@ namespace ConcurrentBusBoarding
         internal Entity Stop;
         internal Entity Route;
         internal byte SelectedForVehicleAi;
+        internal byte UsesNativeBoarding;
     }
 
     internal struct ConcurrentRouteHandoff : IComponentData
@@ -126,20 +127,31 @@ namespace ConcurrentBusBoarding
                 {
                     if (!BoardingHelpers.IsBus(EntityManager, bus))
                         continue;
+                    bool managed = EntityManager.HasComponent<ConcurrentBoardingActive>(bus);
+                    ConcurrentBoardingActive active = managed
+                        ? EntityManager.GetComponentData<ConcurrentBoardingActive>(bus)
+                        : default;
                     if (!BoardingHelpers.HasLoadedCarPrefab(EntityManager, m_PrefabSystem, bus,
                             out Entity vehiclePrefab))
                     {
                         CrashBreadcrumbs.Write($"boarding-skip unresolved-prefab bus={CrashBreadcrumbs.Id(bus)} prefab={CrashBreadcrumbs.Id(vehiclePrefab)}");
-                        if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus))
-                            EntityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
+                        if (managed)
+                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                         continue;
                     }
 
-                    bool managed = EntityManager.HasComponent<ConcurrentBoardingActive>(bus);
                     if (!BoardingHelpers.TryGetStop(EntityManager, bus, out Entity stop))
                     {
                         if (managed)
-                            EntityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
+                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                        continue;
+                    }
+
+                    Entity route = managed && active.Route != Entity.Null ? active.Route : GetCurrentRoute(bus);
+                    if (!BoardingHelpers.CanManageRouteContext(EntityManager, bus, route))
+                    {
+                        if (managed)
+                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                         continue;
                     }
 
@@ -194,7 +206,8 @@ namespace ConcurrentBusBoarding
                     EntityManager.AddComponentData(bus, new ConcurrentBoardingActive
                     {
                         Stop = stop,
-                        Route = GetCurrentRoute(bus)
+                        Route = GetCurrentRoute(bus),
+                        UsesNativeBoarding = 1
                     });
                     activeBuses.Add(bus);
                     occupiedLength += candidateLength;
@@ -218,7 +231,11 @@ namespace ConcurrentBusBoarding
                     CrashBreadcrumbs.Write($"boarding-begin before bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
                     BeginBoarding(bus);
                     CrashBreadcrumbs.Write($"boarding-begin state-written bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
-                    EntityManager.AddComponentData(bus, new ConcurrentBoardingActive { Stop = stop });
+                    EntityManager.AddComponentData(bus, new ConcurrentBoardingActive
+                    {
+                        Stop = stop,
+                        Route = GetCurrentRoute(bus)
+                    });
                     CrashBreadcrumbs.Write($"boarding-begin active-added bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
                     activeBuses.Add(bus);
                     occupiedLength += candidateLength;
@@ -264,7 +281,7 @@ namespace ConcurrentBusBoarding
             ConcurrentBoardingActive active = EntityManager.GetComponentData<ConcurrentBoardingActive>(bus);
             transport.m_State &= ~(PublicTransportFlags.Testing | PublicTransportFlags.RequireStop);
             transport.m_State |= PublicTransportFlags.EnRoute;
-            if (selected)
+            if (BoardingPolicy.ShouldExposeBoardingToVehicleAi(active.UsesNativeBoarding != 0, selected))
                 transport.m_State |= PublicTransportFlags.Boarding;
             else
                 transport.m_State &= ~PublicTransportFlags.Boarding;
@@ -273,7 +290,8 @@ namespace ConcurrentBusBoarding
             {
                 Stop = stop,
                 Route = active.Route != Entity.Null ? active.Route : GetCurrentRoute(bus),
-                SelectedForVehicleAi = selected ? (byte)1 : (byte)0
+                SelectedForVehicleAi = selected ? (byte)1 : (byte)0,
+                UsesNativeBoarding = active.UsesNativeBoarding
             });
         }
 
@@ -465,13 +483,19 @@ namespace ConcurrentBusBoarding
                 foreach (Entity bus in buses)
                 {
                     ConcurrentBoardingActive active = EntityManager.GetComponentData<ConcurrentBoardingActive>(bus);
+                    if (!BoardingHelpers.CanManageRouteContext(EntityManager, bus, active.Route))
+                    {
+                        CrashBreadcrumbs.Write($"active-removed invalid-route bus={CrashBreadcrumbs.Id(bus)} route={CrashBreadcrumbs.Id(active.Route)}");
+                        BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                        continue;
+                    }
                     EnsureRouteAssociation(bus, active);
                     if (!BoardingHelpers.IsBus(EntityManager, bus) ||
                         !BoardingHelpers.TryGetStop(EntityManager, bus, out Entity stop))
                     {
                         CrashBreadcrumbs.Write($"active-removed no-stop bus={CrashBreadcrumbs.Id(bus)}");
                         BeginRouteHandoff(bus, active.Route);
-                        EntityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
+                        BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                         continue;
                     }
 
@@ -480,18 +504,36 @@ namespace ConcurrentBusBoarding
                     {
                         CrashBreadcrumbs.Write($"active-complete bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(active.Stop)} next={CrashBreadcrumbs.Id(stop)}");
                         BeginRouteHandoff(bus, active.Route);
-                        EntityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
+                        BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                         continue;
                     }
 
                     if (active.SelectedForVehicleAi != 0)
                     {
                         active.SelectedForVehicleAi = 0;
-                        if (TryCompleteBoarding(bus, stop, ref transport))
+                        bool boardingAfterVehicleAi =
+                            (transport.m_State & PublicTransportFlags.Boarding) != 0;
+                        if (BoardingPolicy.ShouldAdoptNativeBoarding(
+                                active.UsesNativeBoarding != 0, true, boardingAfterVehicleAi))
+                        {
+                            active.UsesNativeBoarding = 1;
+                            CrashBreadcrumbs.Write($"active-adopted native bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+                        }
+                        if (active.UsesNativeBoarding != 0 &&
+                            !boardingAfterVehicleAi)
+                        {
+                            CrashBreadcrumbs.Write($"active-complete native bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+                            BeginRouteHandoff(bus, active.Route);
+                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                            continue;
+                        }
+                        if (BoardingPolicy.ShouldCompleteManagedBoarding(
+                                active.UsesNativeBoarding != 0, true) &&
+                            TryCompleteBoarding(bus, stop, ref transport))
                         {
                             CrashBreadcrumbs.Write($"active-complete follower bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
                             BeginRouteHandoff(bus, active.Route);
-                            EntityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
+                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                             continue;
                         }
                         EntityManager.SetComponentData(bus, active);
@@ -521,7 +563,7 @@ namespace ConcurrentBusBoarding
 
         private void BeginRouteHandoff(Entity bus, Entity route)
         {
-            if (route == Entity.Null)
+            if (!BoardingHelpers.CanManageRouteContext(EntityManager, bus, route))
                 return;
 
             var handoff = new ConcurrentRouteHandoff
@@ -537,10 +579,8 @@ namespace ConcurrentBusBoarding
 
         private void EnsureRouteAssociation(Entity bus, ConcurrentBoardingActive active)
         {
-            if (EntityManager.HasComponent<CurrentRoute>(bus) || active.Route == Entity.Null ||
-                !EntityManager.Exists(active.Route) || !EntityManager.HasBuffer<RouteWaypoint>(active.Route) ||
-                EntityManager.HasComponent<Deleted>(active.Route) ||
-                EntityManager.HasComponent<Game.Tools.Temp>(active.Route))
+            if (EntityManager.HasComponent<CurrentRoute>(bus) ||
+                !BoardingHelpers.CanManageRouteContext(EntityManager, bus, active.Route))
                 return;
 
             CrashBreadcrumbs.Write($"route-restored bus={CrashBreadcrumbs.Id(bus)} route={CrashBreadcrumbs.Id(active.Route)}");
@@ -602,8 +642,8 @@ namespace ConcurrentBusBoarding
             CurrentRoute currentRoute = EntityManager.GetComponentData<CurrentRoute>(bus);
             PathOwner pathOwner = EntityManager.GetComponentData<PathOwner>(bus);
             Target target = EntityManager.GetComponentData<Target>(bus);
-            if (!EntityManager.HasComponent<Waypoint>(target.m_Target) ||
-                currentRoute.m_Route == Entity.Null || !EntityManager.HasBuffer<RouteWaypoint>(currentRoute.m_Route))
+            if (!BoardingHelpers.IsUsableRouteWaypoint(
+                    EntityManager, currentRoute.m_Route, target.m_Target))
                 return false;
             Waypoint waypoint = EntityManager.GetComponentData<Waypoint>(target.m_Target);
 
@@ -613,7 +653,8 @@ namespace ConcurrentBusBoarding
 
             Entity oldWaypoint = target.m_Target;
             Entity nextWaypoint = waypoints[(waypoint.m_Index + 1) % waypoints.Length].m_Waypoint;
-            if (nextWaypoint == Entity.Null || nextWaypoint == oldWaypoint)
+            if (nextWaypoint == oldWaypoint ||
+                !BoardingHelpers.IsUsableRouteWaypoint(EntityManager, currentRoute.m_Route, nextWaypoint))
                 return false;
 
             CrashBreadcrumbs.Write($"completion-target before bus={CrashBreadcrumbs.Id(bus)} old={CrashBreadcrumbs.Id(oldWaypoint)} next={CrashBreadcrumbs.Id(nextWaypoint)}");
@@ -662,10 +703,8 @@ namespace ConcurrentBusBoarding
             foreach (Entity bus in buses)
             {
                 ConcurrentRouteHandoff handoff = EntityManager.GetComponentData<ConcurrentRouteHandoff>(bus);
-                if (m_SimulationSystem.frameIndex >= handoff.ExpiresFrame || handoff.Route == Entity.Null ||
-                    !EntityManager.Exists(handoff.Route) || !EntityManager.HasBuffer<RouteWaypoint>(handoff.Route) ||
-                    EntityManager.HasComponent<Deleted>(handoff.Route) ||
-                    EntityManager.HasComponent<Game.Tools.Temp>(handoff.Route))
+                if (m_SimulationSystem.frameIndex >= handoff.ExpiresFrame ||
+                    !BoardingHelpers.CanManageRouteContext(EntityManager, bus, handoff.Route))
                 {
                     EntityManager.RemoveComponent<ConcurrentRouteHandoff>(bus);
                     continue;
@@ -792,6 +831,100 @@ namespace ConcurrentBusBoarding
 
     internal static class BoardingHelpers
     {
+        internal static bool CanManageRouteContext(EntityManager entityManager, Entity bus, Entity route)
+        {
+            bool validRoute = bus != Entity.Null && entityManager.Exists(bus) &&
+                entityManager.HasComponent<VehiclePublicTransport>(bus) &&
+                entityManager.HasComponent<Target>(bus) &&
+                !entityManager.HasComponent<Deleted>(bus) &&
+                !entityManager.HasComponent<Game.Tools.Temp>(bus) &&
+                !entityManager.HasComponent<TripSource>(bus) &&
+                !entityManager.HasComponent<OutOfControl>(bus);
+            if (!validRoute)
+                return false;
+
+            if (entityManager.HasComponent<CurrentRoute>(bus) &&
+                entityManager.GetComponentData<CurrentRoute>(bus).m_Route != route)
+                return false;
+
+            VehiclePublicTransport transport = entityManager.GetComponentData<VehiclePublicTransport>(bus);
+            const PublicTransportFlags retiring = PublicTransportFlags.Returning |
+                PublicTransportFlags.Evacuating | PublicTransportFlags.PrisonerTransport |
+                PublicTransportFlags.RequiresMaintenance | PublicTransportFlags.Refueling |
+                PublicTransportFlags.AbandonRoute | PublicTransportFlags.DummyTraffic |
+                PublicTransportFlags.Disabled;
+            const PublicTransportFlags active = PublicTransportFlags.EnRoute |
+                PublicTransportFlags.Arriving | PublicTransportFlags.Boarding |
+                PublicTransportFlags.Testing | PublicTransportFlags.RequireStop;
+            bool isRetiring = (transport.m_State & retiring) != 0 ||
+                (transport.m_State & active) == 0;
+            Entity target = entityManager.GetComponentData<Target>(bus).m_Target;
+            return BoardingPolicy.CanRestoreRoute(
+                IsUsableRoute(entityManager, route),
+                IsUsableRouteWaypoint(entityManager, route, target),
+                isRetiring);
+        }
+
+        internal static bool IsUsableRouteWaypoint(EntityManager entityManager, Entity route, Entity waypoint)
+        {
+            if (!IsUsableRoute(entityManager, route) || waypoint == Entity.Null ||
+                !entityManager.Exists(waypoint) ||
+                entityManager.HasComponent<Deleted>(waypoint) ||
+                entityManager.HasComponent<Game.Tools.Temp>(waypoint) ||
+                !entityManager.HasComponent<Waypoint>(waypoint) ||
+                !entityManager.HasComponent<Owner>(waypoint) ||
+                entityManager.GetComponentData<Owner>(waypoint).m_Owner != route)
+                return false;
+
+            Waypoint data = entityManager.GetComponentData<Waypoint>(waypoint);
+            DynamicBuffer<RouteWaypoint> waypoints = entityManager.GetBuffer<RouteWaypoint>(route, true);
+            return data.m_Index >= 0 && data.m_Index < waypoints.Length &&
+                waypoints[data.m_Index].m_Waypoint == waypoint;
+        }
+
+        internal static void ReleaseConcurrentBoarding(
+            EntityManager entityManager, Entity bus, ConcurrentBoardingActive active)
+        {
+            if (active.UsesNativeBoarding == 0 && bus != Entity.Null && entityManager.Exists(bus) &&
+                entityManager.HasComponent<VehiclePublicTransport>(bus))
+            {
+                VehiclePublicTransport transport = entityManager.GetComponentData<VehiclePublicTransport>(bus);
+                transport.m_State &= ~PublicTransportFlags.Boarding;
+                entityManager.SetComponentData(bus, transport);
+
+                if (active.Stop != Entity.Null && entityManager.Exists(active.Stop) &&
+                    entityManager.HasComponent<BoardingVehicle>(active.Stop))
+                {
+                    BoardingVehicle slot = entityManager.GetComponentData<BoardingVehicle>(active.Stop);
+                    bool changed = false;
+                    if (slot.m_Vehicle == bus)
+                    {
+                        slot.m_Vehicle = Entity.Null;
+                        changed = true;
+                    }
+                    if (slot.m_Testing == bus)
+                    {
+                        slot.m_Testing = Entity.Null;
+                        changed = true;
+                    }
+                    if (changed)
+                        entityManager.SetComponentData(active.Stop, slot);
+                }
+            }
+
+            if (bus != Entity.Null && entityManager.Exists(bus) &&
+                entityManager.HasComponent<ConcurrentBoardingActive>(bus))
+                entityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
+        }
+
+        private static bool IsUsableRoute(EntityManager entityManager, Entity route)
+        {
+            return route != Entity.Null && entityManager.Exists(route) &&
+                !entityManager.HasComponent<Deleted>(route) &&
+                !entityManager.HasComponent<Game.Tools.Temp>(route) &&
+                entityManager.HasBuffer<RouteWaypoint>(route);
+        }
+
         internal static Dictionary<Entity, BoardingZone> FindObservedZones(EntityManager entityManager, EntityQuery busQuery)
         {
             var result = new Dictionary<Entity, BoardingZone>();
@@ -1048,8 +1181,11 @@ namespace ConcurrentBusBoarding
                 return;
 
             BoardingZoneOverride custom = entityManager.GetComponentData<BoardingZoneOverride>(stop);
-            zone.CustomOffset = custom.m_Offset;
-            zone.CustomLength = custom.m_Length;
+            zone.CustomOffset = math.isfinite(custom.m_Offset) ? custom.m_Offset : 0f;
+            zone.CustomLength = math.isfinite(custom.m_Length)
+                ? math.clamp(custom.m_Length, BoardingPolicy.MinimumCustomZoneLength,
+                    BoardingPolicy.MaximumCustomZoneLength)
+                : BoardingPolicy.MinimumCustomZoneLength;
         }
 
         internal static bool TryGetLaneGeometry(EntityManager entityManager, Entity lane, out Curve curve, out float width)
@@ -1067,7 +1203,44 @@ namespace ConcurrentBusBoarding
                 if (entityManager.HasComponent<NetLaneData>(prefab))
                     width = entityManager.GetComponentData<NetLaneData>(prefab).m_Width;
             }
-            return true;
+            if (!math.isfinite(width) || width <= 0f)
+                width = 3.5f;
+            return IsFiniteCurve(curve);
+        }
+
+        internal static bool IsRenderableZone(EntityManager entityManager, Entity stop, BoardingZone zone)
+        {
+            if (!IsPassengerBusStop(entityManager, stop) || zone.Pieces == null || zone.Pieces.Count == 0)
+                return false;
+
+            bool hasLength = false;
+            foreach (BoardingZonePiece piece in zone.Pieces)
+            {
+                if (piece.Lane == Entity.Null || !entityManager.Exists(piece.Lane) ||
+                    entityManager.HasComponent<Deleted>(piece.Lane) ||
+                    entityManager.HasComponent<Game.Tools.Temp>(piece.Lane) ||
+                    !entityManager.HasComponent<NetCarLane>(piece.Lane) ||
+                    !entityManager.HasComponent<Curve>(piece.Lane) ||
+                    !math.all(math.isfinite(piece.Bounds)) ||
+                    piece.Bounds.x < 0f || piece.Bounds.y > 1f || piece.Bounds.x > piece.Bounds.y ||
+                    !math.isfinite(piece.Width) || piece.Width <= 0f ||
+                    !IsFiniteCurve(piece.Curve))
+                    return false;
+                hasLength |= PieceLength(piece) > 0.01f;
+            }
+            return hasLength;
+        }
+
+        private static bool IsFiniteCurve(Curve curve)
+        {
+            if (!math.isfinite(curve.m_Length) || curve.m_Length <= 0f)
+                return false;
+            float3 start = MathUtils.Position(curve.m_Bezier, 0f);
+            float3 middle = MathUtils.Position(curve.m_Bezier, 0.5f);
+            float3 end = MathUtils.Position(curve.m_Bezier, 1f);
+            return math.all(math.isfinite(start)) &&
+                math.all(math.isfinite(middle)) &&
+                math.all(math.isfinite(end));
         }
 
         private static bool IsSecondaryLane(EntityManager entityManager, Entity lane)
@@ -1194,10 +1367,17 @@ namespace ConcurrentBusBoarding
 
         internal static bool IsPassengerBusStop(EntityManager entityManager, Entity stop)
         {
-            if (!entityManager.HasComponent<BoardingVehicle>(stop) || !entityManager.HasComponent<PrefabRef>(stop))
+            if (stop == Entity.Null || !entityManager.Exists(stop) ||
+                entityManager.HasComponent<Deleted>(stop) ||
+                entityManager.HasComponent<Game.Tools.Temp>(stop) ||
+                !entityManager.HasComponent<BoardingVehicle>(stop) ||
+                !entityManager.HasComponent<PrefabRef>(stop))
                 return false;
             Entity prefab = entityManager.GetComponentData<PrefabRef>(stop).m_Prefab;
-            if (!entityManager.HasComponent<TransportStopData>(prefab))
+            if (prefab == Entity.Null || !entityManager.Exists(prefab) ||
+                entityManager.HasComponent<Deleted>(prefab) ||
+                entityManager.HasComponent<Game.Tools.Temp>(prefab) ||
+                !entityManager.HasComponent<TransportStopData>(prefab))
                 return false;
             TransportStopData data = entityManager.GetComponentData<TransportStopData>(prefab);
             return data.m_TransportType == TransportType.Bus && data.m_PassengerTransport;
@@ -1205,10 +1385,16 @@ namespace ConcurrentBusBoarding
 
         internal static bool IsBus(EntityManager entityManager, Entity vehicle)
         {
-            if (vehicle == Entity.Null || !entityManager.Exists(vehicle) || !entityManager.HasComponent<PrefabRef>(vehicle))
+            if (vehicle == Entity.Null || !entityManager.Exists(vehicle) ||
+                entityManager.HasComponent<Deleted>(vehicle) ||
+                entityManager.HasComponent<Game.Tools.Temp>(vehicle) ||
+                !entityManager.HasComponent<PrefabRef>(vehicle))
                 return false;
             Entity prefab = entityManager.GetComponentData<PrefabRef>(vehicle).m_Prefab;
-            return entityManager.HasComponent<PublicTransportVehicleData>(prefab) &&
+            return prefab != Entity.Null && entityManager.Exists(prefab) &&
+                !entityManager.HasComponent<Deleted>(prefab) &&
+                !entityManager.HasComponent<Game.Tools.Temp>(prefab) &&
+                entityManager.HasComponent<PublicTransportVehicleData>(prefab) &&
                 entityManager.GetComponentData<PublicTransportVehicleData>(prefab).m_TransportType == TransportType.Bus;
         }
 
@@ -1235,7 +1421,10 @@ namespace ConcurrentBusBoarding
                 stop = target;
             else if (entityManager.HasComponent<Connected>(target))
                 stop = entityManager.GetComponentData<Connected>(target).m_Connected;
-            return stop != Entity.Null && entityManager.HasComponent<BoardingVehicle>(stop);
+            return stop != Entity.Null && entityManager.Exists(stop) &&
+                !entityManager.HasComponent<Deleted>(stop) &&
+                !entityManager.HasComponent<Game.Tools.Temp>(stop) &&
+                entityManager.HasComponent<BoardingVehicle>(stop);
         }
 
         internal static float GetVehicleLength(EntityManager entityManager, Entity vehicle)

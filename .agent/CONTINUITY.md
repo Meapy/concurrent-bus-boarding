@@ -1,4 +1,6 @@
 [PLANS]
+- 2026-07-23T10:13:00+01:00 [USER] Keep the audit and crash-hardening changes on their own branch.
+- 2026-07-23T10:10:00+01:00 [USER] Supersedes the read-only audit constraint: enable mod errors in the in-game UI and implement the smallest logic hardening that reduces crash risk.
 - 2026-07-23T10:05:00+01:00 [USER] Audit the published mod and repository for any remaining mechanism that could crash Cities: Skylines II; diagnose and report without changing runtime behavior.
 - 2026-07-22T23:08:32+01:00 [USER] Confirmed diagnostic v6 works properly and authorized pushing, merging, and publishing version 1.1.0. Attach the user-created Paradox Forums support thread to the mod listing.
 - 2026-07-22T22:17:53+01:00 [USER] Diagnostic v5 still loses the native Line row exactly at the `Boarding` to `En route` transition and crashed again. Preserve the route across that transition and reject line-detached buses before concurrent admission.
@@ -48,6 +50,8 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-23T10:16:00+01:00 [CODE] Validate every cached zone lane piece and numeric curve input before submitting overlay primitives. Evict stale zones and reject non-finite saved lengths/pointer geometry instead of catching after a potentially invalid native render-buffer write.
+- 2026-07-23T10:10:00+01:00 [CODE] Track native versus synthetic boarding ownership. Expose only selected native sessions to `TransportCarAISystem`; adopt a synthetic session only when native AI returns it to `Boarding`; manually complete only remaining synthetic sessions. Gate route restoration and target changes on a live, matching route/waypoint and non-retiring transport state.
 - 2026-07-23T10:05:00+01:00 [ASSUMPTION] Keep this pass read-only for runtime code. Rank risks from current source, preserved crash artifacts, and the installed 1.6.0 `Game.dll`; do not treat a successful v6 gameplay session as proof that unsupported lifecycle combinations are impossible.
 - 2026-07-22T23:08:32+01:00 [USER] Use the Paradox Forums thread `1935925` as the public comment/support page, not GitHub Discussions.
 - 2026-07-22T22:17:53+01:00 [CODE] Require native `CurrentRoute` on every concurrent-admission candidate. On managed completion, retain the captured route through a bounded 512-frame post-AI handoff so a one-time native removal is repaired without permanently overriding later route changes.
@@ -131,6 +135,9 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-23T10:16:00+01:00 [TOOL] Zone-drawing validation passes policy, whitespace, diff, and official 1.6.0 Release checks with 0 warnings/errors on `feature/crash-hardening`; the live Mods folder remains untouched.
+- 2026-07-23T10:13:00+01:00 [TOOL] Created and switched the staged work to `feature/crash-hardening`; nothing was pushed.
+- 2026-07-23T10:10:00+01:00 [TOOL] UI error visibility and lifecycle hardening pass policy assertions, webpack 5.97.1 UI build/smoke testing, whitespace and diff checks, and an isolated official 1.6.0 Release build with 0 warnings/errors. No live mod files were changed.
 - 2026-07-23T10:05:00+01:00 [TOOL] Current `master` was clean before the audit. Policy checks and the webpack 5.97.1 production UI smoke test pass; the machine-global npm launcher is broken, so the existing local modules were run with the bundled workspace Node executable without installing anything.
 - 2026-07-22T23:08:32+01:00 [TOOL] Diagnostic v6 was deployed with all eight source/target hashes matching and subsequently confirmed working by the user. Policy, whitespace, UI production/smoke checks, and the clean non-diagnostic official build pass; release publication is in progress.
 - 2026-07-22T22:23:00+01:00 [TOOL] Policy and whitespace checks pass. Diagnostic v6 builds in the isolated `artifacts/diagnostic-v6` directory with 0 warnings/errors; Cities II is running, so the live v5 package was deliberately not overwritten.
@@ -209,6 +216,8 @@
 - 2026-07-21T12:05:23+01:00 [TOOL] Committed the full pull-in lane and settling-threshold correction as `a9e66b6`, pushed `feature/concurrent-boarding`, and refreshed draft PR #1 with the Butler Street evidence and current verification.
 
 [DISCOVERIES]
+- 2026-07-23T10:16:00+01:00 [CODE] The overlay previously checked only the cached primary lane before drawing and could retain stale rear pieces or forward non-finite curve/width/save values to the native overlay buffer. All pieces and numeric inputs are now validated before any `DrawCurve`/handle operation.
+- 2026-07-23T10:10:00+01:00 [CODE] Clearing a synthetic session's `Boarding` flag before native vehicle AI prevents the known indirect unpaired completion path. If native AI sets the flag during that tick, treating the session as native preserves the game's paired begin/end lifecycle; blanket exception catches would not make a native/Burst crash recoverable and could hide partial ECS writes.
 - 2026-07-23T10:05:00+01:00 [CODE] HIGH crash risk: `BeginBoarding` manufactures `PublicTransportFlags.Boarding` and a stop slot without the native `TransportBoardingHelpers.BoardingData.BeginBoarding` producer. Installed 1.6.0 IL proves `TransportCarTickJob` can later run native `StopBoarding`/`EndBoarding` for that selected synthetic bus; the source regex check does not detect this indirect lifecycle.
 - 2026-07-23T10:05:00+01:00 [CODE] HIGH crash risk: `EnsureRouteAssociation` and the 512-frame `RouteHandoffSystem` restore any still-valid route without checking the bus state or target. Installed IL proves native `TransportCarTickJob` intentionally removes `CurrentRoute` during `ReturnToDepot`, dispatch handling, and boarding abandon paths, so the mod can resurrect state the native AI deliberately retired.
 - 2026-07-23T10:05:00+01:00 [CODE] MEDIUM crash risk: `TryAdvanceToNextWaypoint` validates the route buffer and index but not whether the selected next waypoint exists, has `Waypoint`, or is non-`Deleted`/non-`Temp`; installed `VehicleUtils.SetTarget` performs no validation and directly forwards the entity into pathfinding state.
@@ -267,6 +276,8 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-23T10:16:00+01:00 [TOOL] Supersedes the 10:10 staged artifact: the zone-hardened candidate is a 53,248-byte DLL with SHA-256 `5A0AC0FC6C0B91D8CF041F1F3619CCF38490A934910583D7EE1330F6EFECC05E`. It remains isolated and requires the documented gameplay/rendering test matrix.
+- 2026-07-23T10:10:00+01:00 [TOOL] The audit's four findings are hardened in an isolated candidate: native/synthetic lifecycle ownership, retirement-aware route preservation, waypoint validation, and render-cache eviction. The staged 52,224-byte DLL SHA-256 is `D08C44AAA3B80C12461214E6F9DC1273AEF3A45A23E745E035428FA7DB71A729`; deployment and the documented gameplay matrix remain pending.
 - 2026-07-23T10:05:00+01:00 [TOOL] Post-release crash audit found two high-risk native lifecycle mismatches, one medium stale-waypoint risk, and one low cache-growth issue. No runtime files were changed; recommended next work is a diagnostic hardening patch plus an A/B gameplay run covering route abandonment, depot return, stop deletion, and missing-asset buses before another release.
 - 2026-07-22T23:49:00+01:00 [TOOL] Supersedes the pending follow-up in the 23:42 outcome: ForumLink PR #4 passed GitGuardian and was squash-merged as `be0a0d1`; local `master` is current. Version 1.1.0 and its forum metadata are live.
 - 2026-07-22T23:42:00+01:00 [TOOL] GitHub PR #3 passed GitGuardian and was squash-merged to `master` as `1c688d3`. Paradox Mod Publisher successfully created public version 1.1.0 from the verified release directory, then successfully applied the dedicated `ForumLink` metadata update. The public mod URL returns HTTP 200. A small GitHub follow-up for the corrected XML remains.

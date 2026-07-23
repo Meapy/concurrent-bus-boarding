@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Show mod-reported errors in the in-game error UI.
+- Keep synthetic follower sessions out of native boarding completion unless vehicle AI explicitly adopts them.
+- Stop managed boarding and route restoration when a bus retires, changes route, loses its target, or references stale route data.
+- Validate both current and next route waypoints before changing a completed follower's target.
+- Remove deleted stops from the boarding-zone render cache and reject stale or non-finite lane geometry before drawing.
+
 ## 1.1.0 — 2026-07-22
 
 - Allow stopped buses within the same boarding zone to board and unload concurrently.

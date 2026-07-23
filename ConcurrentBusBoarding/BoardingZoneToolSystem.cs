@@ -91,6 +91,8 @@ namespace ConcurrentBusBoarding
 
         private void UpdateZone(float length)
         {
+            if (!math.isfinite(length))
+                return;
             BoardingZoneOverride custom = new BoardingZoneOverride(0f,
                 math.clamp(length, BoardingPolicy.MinimumCustomZoneLength, BoardingPolicy.MaximumCustomZoneLength));
             if (EntityManager.HasComponent<BoardingZoneOverride>(m_EditingStop))
@@ -109,7 +111,7 @@ namespace ConcurrentBusBoarding
                 return false;
             }
             world = (float3)ray.GetPoint(distance);
-            return true;
+            return math.all(math.isfinite(world));
         }
 
         private static float EndHandleDistance(Camera camera, Vector2 pointer, BoardingZonePiece piece, float curvePosition)

@@ -80,6 +80,23 @@ internal static class BoardingPolicyCheck
         Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, true), "waiting passengers must finish");
         Expect(!BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false), "onboard transitions must finish");
         Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, true), "completed follower can leave");
+        Expect(BoardingPolicy.ShouldExposeBoardingToVehicleAi(true, true),
+            "selected native session remains visible to vehicle AI");
+        Expect(!BoardingPolicy.ShouldExposeBoardingToVehicleAi(false, true),
+            "synthetic session never enters native completion");
+        Expect(!BoardingPolicy.ShouldExposeBoardingToVehicleAi(true, false),
+            "unselected native session stays out of vehicle AI");
+        Expect(BoardingPolicy.ShouldCompleteManagedBoarding(false, true),
+            "selected synthetic session uses managed completion");
+        Expect(!BoardingPolicy.ShouldCompleteManagedBoarding(true, true),
+            "native session never uses synthetic completion");
+        Expect(BoardingPolicy.ShouldAdoptNativeBoarding(false, true, true),
+            "vehicle AI can replace a selected synthetic session with a native session");
+        Expect(!BoardingPolicy.ShouldAdoptNativeBoarding(false, false, true),
+            "unselected session cannot claim native adoption");
+        Expect(BoardingPolicy.CanRestoreRoute(true, true, false), "valid active route can be restored");
+        Expect(!BoardingPolicy.CanRestoreRoute(true, false, false), "stale target blocks route restoration");
+        Expect(!BoardingPolicy.CanRestoreRoute(true, true, true), "retiring bus blocks route restoration");
         int[] split = new int[3];
         for (uint turn = 0; turn < 10; turn++)
             split[BoardingPolicy.RotationIndex(split.Length, turn, 0)]++;
