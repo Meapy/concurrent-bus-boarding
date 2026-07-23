@@ -21,6 +21,15 @@ namespace ConcurrentBusBoarding
         [SettingsUISection(MainSection, DisplayGroup)]
         public bool OnlyShowSelectedStop { get; set; }
 
+        [SettingsUISection(MainSection, DisplayGroup)]
+        [SettingsUIButton]
+        [SettingsUIConfirmation(null,
+            "Reset every customized bus boarding zone in the current city? This cannot be undone.")]
+        public bool ResetAllZones
+        {
+            set => BoardingZoneEditorUISystem.RequestResetAllZones();
+        }
+
         public override void SetDefaults() => OnlyShowSelectedStop = true;
     }
 
@@ -44,7 +53,11 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.OnlyShowSelectedStop)),
                     "Only show the selected stop" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.OnlyShowSelectedStop)),
-                    "Hide boarding-zone overlays until a bus stop is selected. The zone remains visible while editing it on the map." }
+                    "Hide boarding-zone overlays until a bus stop is selected. The zone remains visible while editing it on the map." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
+                    "Reset all customized zones" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
+                    "Remove every saved per-stop zone length in the current city and return those stops to automatic sizing." }
             };
         }
 

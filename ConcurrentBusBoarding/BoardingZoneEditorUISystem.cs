@@ -1,5 +1,6 @@
 using Colossal.UI.Binding;
 using Game;
+using Game.Common;
 using Game.Routes;
 using Game.Tools;
 using Game.UI;
@@ -14,7 +15,9 @@ namespace ConcurrentBusBoarding
     {
         private const string BindingGroup = "ConcurrentBusBoarding";
         private const int UpdateEveryFrames = 10;
+        private static volatile bool s_ResetAllRequested;
 
+        private EntityQuery m_ZoneOverrides;
         private SelectedInfoUISystem m_SelectedInfo;
         private BoardingZoneRenderSystem m_RenderSystem;
         private BoardingZoneToolSystem m_ZoneTool;
@@ -26,6 +29,10 @@ namespace ConcurrentBusBoarding
         protected override void OnCreate()
         {
             base.OnCreate();
+            m_ZoneOverrides = GetEntityQuery(
+                ComponentType.ReadOnly<BoardingZoneOverride>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
             m_SelectedInfo = World.GetOrCreateSystemManaged<SelectedInfoUISystem>();
             m_RenderSystem = World.GetOrCreateSystemManaged<BoardingZoneRenderSystem>();
             m_ZoneTool = World.GetOrCreateSystemManaged<BoardingZoneToolSystem>();
@@ -41,6 +48,11 @@ namespace ConcurrentBusBoarding
         [Preserve]
         protected override void OnUpdate()
         {
+            if (s_ResetAllRequested)
+            {
+                s_ResetAllRequested = false;
+                ResetAllZones();
+            }
             if (m_ZoneTool.EditingStop != Entity.Null && TryGetSelectedStop(out Entity selectedStop) &&
                 selectedStop != m_ZoneTool.EditingStop)
                 StopEditing();
@@ -108,6 +120,19 @@ namespace ConcurrentBusBoarding
                 return;
             if (EntityManager.HasComponent<BoardingZoneOverride>(stop))
                 EntityManager.RemoveComponent<BoardingZoneOverride>(stop);
+            Refresh();
+        }
+
+        internal static void RequestResetAllZones() => s_ResetAllRequested = true;
+
+        private void ResetAllZones()
+        {
+            int count = m_ZoneOverrides.CalculateEntityCount();
+            if (count != 0)
+            {
+                EntityManager.RemoveComponent<BoardingZoneOverride>(m_ZoneOverrides);
+                Mod.Log.Info($"Reset {count} customized boarding zone(s)");
+            }
             Refresh();
         }
 

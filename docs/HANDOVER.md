@@ -134,6 +134,9 @@ gameplay-tested:
 - Stop, bus, prefab, and render-cache reads reject deleted/temporary entities. The overlay validates every lane piece,
   curve sample, bound, width, and saved custom length before drawing; it skips zero-length primitives and evicts stale
   geometry. Map dragging also rejects non-finite pointer positions and lengths.
+- The global settings page has a confirmation-protected **Reset all customized zones** button. Its setter only queues
+  the request; `BoardingZoneEditorUISystem` performs the structural ECS removal on its own update, removes every live
+  `BoardingZoneOverride` in the current city, and invalidates the overlay.
 
 Broad `try/catch` blocks were deliberately not added around simulation updates. A caught exception after partial ECS
 mutation could leave more dangerous state behind, and managed catches cannot intercept Burst/native access violations.
@@ -147,10 +150,11 @@ Verification:
 - Whitespace verification and `git diff --check` pass.
 - The official Cities: Skylines II 1.6.0 toolchain builds the isolated
   `artifacts/hardening-20260723/ConcurrentBusBoarding` package with 0 warnings and 0 errors.
-- The staged 53,248-byte DLL SHA-256 is
-  `5A0AC0FC6C0B91D8CF041F1F3619CCF38490A934910583D7EE1330F6EFECC05E`.
+- The staged 54,272-byte DLL SHA-256 is
+  `898DF2E4FF1C4AC227F095EA21B4520235379DEA1495835540305B02F3F7D6E0`.
 
 Before release, gameplay-test concurrent native and synthetic followers, depot return, route abandonment/reassignment,
 deleting an active stop, and a save with a missing custom-bus asset. Confirm both boarding behavior and route-panel
 persistence. Also toggle selected/all-stop overlays, edit a zone, and delete or rebuild roads while overlays are visible
-to confirm stale zones disappear without rendering errors.
+to confirm stale zones disappear without rendering errors. Create several custom zones, cancel the global reset once,
+then confirm it and verify that all zones return to automatic sizing and remain automatic after save/reload.

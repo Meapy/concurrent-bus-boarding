@@ -7,6 +7,7 @@
 - Stop managed boarding and route restoration when a bus retires, changes route, loses its target, or references stale route data.
 - Validate both current and next route waypoints before changing a completed follower's target.
 - Remove deleted stops from the boarding-zone render cache and reject stale or non-finite lane geometry before drawing.
+- Add a confirmed settings action that resets every customized zone in the current city to automatic sizing.
 
 ## 1.1.0 — 2026-07-22
 
