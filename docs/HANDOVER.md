@@ -204,4 +204,8 @@ Verification:
 - The official toolchain builds `artifacts/first-bus-native-20260723/ConcurrentBusBoarding` with 0 warnings and 0 errors.
 - The staged 54,272-byte DLL SHA-256 is
   `5C1D91A07F0BE038AEB6705C721743B956637E2352A393CDC605BCFBDB47FBAC`.
-- Cities II is running, so the live package remains unchanged until the game closes.
+- After Cities II closed, all eight staged files were copied to the live local Mods package and their SHA-256 hashes
+  were verified. The replaced package is recoverable from
+  `artifacts/pre-first-bus-native-live-20260723-113348/ConcurrentBusBoarding`.
+- Gameplay confirmation remains: verify that an empty first bus stops and enters native boarding, then that a stopped
+  follower boards concurrently and receives passengers when the lead bus is full.

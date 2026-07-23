@@ -142,6 +142,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-23T11:33:48+01:00 [TOOL] After the user closed Cities II, backed up the prior live package, installed the complete first-bus native-admission candidate, and verified all eight staged/live SHA-256 hashes.
 - 2026-07-23T11:29:05+01:00 [TOOL] First-bus native-admission correction passes policy, UI smoke, whitespace/diff, and official 1.6.0 Release checks with 0 warnings/errors. Cities II remains running, so deployment is pending.
 - 2026-07-23T11:11:55+01:00 [TOOL] After the user closed Cities II, backed up the prior live package, copied the complete eight-file rear-boarding candidate to the local Mods folder, and verified every staged/live SHA-256 hash.
 - 2026-07-23T11:09:51+01:00 [TOOL] Sticky passenger selection passes policy, UI smoke, whitespace/diff, and official 1.6.0 Release checks with 0 warnings/errors. Cities II is running, so only the isolated staged package was updated.
@@ -290,6 +291,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-23T11:33:48+01:00 [TOOL] Live local package now contains the 54,272-byte `5C1D91A0...FBAC` first-bus correction and seven matching companions. Rollback: `artifacts/pre-first-bus-native-live-20260723-113348/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-23T11:29:05+01:00 [TOOL] Corrected package staged at `artifacts/first-bus-native-20260723/ConcurrentBusBoarding`; DLL is 54,272 bytes, SHA-256 `5C1D91A07F0BE038AEB6705C721743B956637E2352A393CDC605BCFBDB47FBAC`. Source is committed as `73516c3`; live deployment and gameplay confirmation remain.
 - 2026-07-23T11:11:55+01:00 [TOOL] The live local package now contains the 54,272-byte rear-boarding DLL `403501CD...7AF9` and seven matching companions. Rollback: `artifacts/pre-rear-boarding-live-20260723-1112/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-23T11:09:51+01:00 [TOOL] Rear-bus retry candidate staged at `artifacts/rear-boarding-20260723/ConcurrentBusBoarding`; DLL is 54,272 bytes, SHA-256 `403501CDD3DB9E12B2C756BE8666978E4CE9071BBB4464ACA0E2981276157AF9`. Live deployment and gameplay confirmation remain because Cities II is running.
