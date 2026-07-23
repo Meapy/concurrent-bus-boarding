@@ -79,6 +79,37 @@ Re-run the gameplay calibration after each Cities: Skylines II update that chang
 `CarCurrentLane`, `CarNavigationLane`, transform, or rotation writes for front packing; the tested release deliberately
 uses native traffic spacing.
 
+### Post-release crash audit (2026-07-23)
+
+The current source still has crash-capable lifecycle edges even though diagnostic v6 passed its gameplay run:
+
+1. **Synthetic boarding remains the highest risk.** `ConcurrentBoardingSystem.BeginBoarding` writes the native
+   `Boarding` flag and stop slot without queuing the installed game's matching
+   `TransportBoardingHelpers.BoardingData.BeginBoarding`. Installed 1.6.0 IL confirms that a selected synthetic bus can
+   later reach native `TransportCarTickJob.StopBoarding`, which can queue `EndBoarding`. The policy test only rejects an
+   explicit call in mod source and therefore does not cover this indirect native path.
+2. **Route restoration can undo an intentional native transition.** Both `EnsureRouteAssociation` and the 512-frame
+   `RouteHandoffSystem` re-add `CurrentRoute` when the route entity still exists, without checking the bus's current
+   target or `Returning`, `AbandonRoute`, maintenance, disabled, or out-of-control state. Installed IL confirms that
+   native transport AI intentionally removes `CurrentRoute` during depot return, dispatch, and boarding-abandon paths.
+3. **The manual next-waypoint handoff accepts a stale waypoint.** `TryAdvanceToNextWaypoint` checks the route buffer and
+   current index, but not whether the chosen next waypoint exists, has `Waypoint`, or is non-`Deleted`/non-`Temp`.
+   Installed `VehicleUtils.SetTarget` only copies the entity and marks the path dirty; it performs no validation.
+4. **The render cache is unbounded.** `BoardingZoneRenderSystem.m_Zones` retains deleted stops and their managed
+   lane-piece lists forever. This is a low-probability long-session memory/iteration risk, not an evidenced immediate
+   crash.
+
+The preserved Coherent UI/V8 failure does not implicate this bundle: registration is idempotent, the CBB UI log has no
+module exception, and the crash boundary instead names BetterTransitView/Move It activity plus a logger null reference.
+The repeated empty-stack native failures remain correlated with synthetic admission of saved bus `268079:1` and an
+unresolved StarQ bus prefab. Requiring `CurrentRoute` prevented that known entity from entering diagnostic v6, but it is
+an exclusion guard rather than proof that the synthetic lifecycle is safe.
+
+Recommended diagnostic patch order: stop restoring routes across explicit native retirement states; fully validate the
+next waypoint before `SetTarget`; then redesign follower admission so begin/end are paired or the bus never enters the
+native completion path. A gameplay A/B should cover route abandonment, depot return, deleting an active stop, and a
+save with a missing custom-bus asset.
+
 For a local crash investigation, build with
 `dotnet build ConcurrentBusBoarding.slnx -c Release -p:CbbDiagnostics=true`. The diagnostic package writes the bounded,
 auto-flushed `Logs/ConcurrentBusBoarding-breadcrumbs.log`; never pass that property to the Paradox publishing build.
