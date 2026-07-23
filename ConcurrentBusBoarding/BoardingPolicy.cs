@@ -127,6 +127,11 @@ namespace ConcurrentBusBoarding
             return activeBusCount > 0;
         }
 
+        internal static bool ShouldRequestStop(bool canAdmit, bool boarding)
+        {
+            return canAdmit && !boarding;
+        }
+
         internal static uint PassengerSelectionTurn(uint simulationFrame)
         {
             return simulationFrame / ResidentUpdateFrames;

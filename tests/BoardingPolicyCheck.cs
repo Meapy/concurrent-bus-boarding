@@ -80,6 +80,12 @@ internal static class BoardingPolicyCheck
             "first bus must use the native boarding lifecycle");
         Expect(BoardingPolicy.CanBeginSyntheticBoarding(1),
             "a following bus can use managed boarding");
+        Expect(BoardingPolicy.ShouldRequestStop(true, false),
+            "eligible approaching bus requests its target stop");
+        Expect(!BoardingPolicy.ShouldRequestStop(false, false),
+            "bus outside available zone does not request a stop");
+        Expect(!BoardingPolicy.ShouldRequestStop(true, true),
+            "boarding bus does not repeat the stop request");
         Expect(BoardingPolicy.PassengerSelectionTurn(0) == 0, "passenger selection starts at first sweep");
         Expect(BoardingPolicy.PassengerSelectionTurn(15) == 0,
             "passenger selection stays fixed for every resident partition");

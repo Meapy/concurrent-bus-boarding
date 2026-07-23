@@ -54,6 +54,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-23T11:52:34+01:00 [CODE] Set the native `RequireStop` bit on any unmanaged bus already inside an admissible target-stop zone. Preserve native braking, navigation, waypoint selection, and first-bus boarding; synthetic boarding remains follower-only.
 - 2026-07-23T11:29:05+01:00 [CODE] Reserve synthetic admission for actual followers by requiring an already-active boarding bus. Let the first bus at an idle stop enter through the native paired lifecycle, then adopt it.
 - 2026-07-23T11:09:51+01:00 [CODE] Hold each stop's passenger-facing `BoardingVehicle` for the installed game's complete 16-frame resident update sweep, then rotate fairly. Do not filter full buses, because onboard passengers also require the pointer to exit.
 - 2026-07-23T10:27:00+01:00 [CODE] Use the native confirmation-protected settings button. Queue the request from the setting setter and remove all live `BoardingZoneOverride` components inside `BoardingZoneEditorUISystem.OnUpdate`, keeping structural ECS changes in the owning game world and defining reset as component absence.
@@ -142,6 +143,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-23T11:52:34+01:00 [TOOL] Target-zone stop requesting passes policy, UI smoke, whitespace/diff, and official 1.6.0 Release checks with 0 warnings/errors. With Cities II closed, backed up and replaced all eight live package files; staged/live hashes match.
 - 2026-07-23T11:33:48+01:00 [TOOL] After the user closed Cities II, backed up the prior live package, installed the complete first-bus native-admission candidate, and verified all eight staged/live SHA-256 hashes.
 - 2026-07-23T11:29:05+01:00 [TOOL] First-bus native-admission correction passes policy, UI smoke, whitespace/diff, and official 1.6.0 Release checks with 0 warnings/errors. Cities II remains running, so deployment is pending.
 - 2026-07-23T11:11:55+01:00 [TOOL] After the user closed Cities II, backed up the prior live package, copied the complete eight-file rear-boarding candidate to the local Mods folder, and verified every staged/live SHA-256 hash.
@@ -229,6 +231,7 @@
 - 2026-07-21T12:05:23+01:00 [TOOL] Committed the full pull-in lane and settling-threshold correction as `a9e66b6`, pushed `feature/concurrent-boarding`, and refreshed draft PR #1 with the Butler Street evidence and current verification.
 
 [DISCOVERIES]
+- 2026-07-23T11:52:34+01:00 [TOOL] Installed 1.6.0 vehicle AI advances a reached route waypoint when boarding does not start, while resident boarding independently sets `PublicTransportFlags.RequireStop`. A first bus can therefore pass waiting passengers if vehicle AI reaches the waypoint before a resident partition requests the stop.
 - 2026-07-23T11:29:05+01:00 [CODE] No CBB exception appears in the current Player/UI logs. The regression was logical: a first stopped bus could be synthetically admitted before vanilla AI began boarding, then crash hardening removed its unpaired `Boarding` flag before vehicle AI and allowed it to continue.
 - 2026-07-23T11:09:51+01:00 [TOOL] Installed 1.6.0 `ResidentAISystem.OnUpdate` filters residents by `frameIndex % 16`. `RouteUtils.GetBoardingVehicle` offers one stop vehicle, and `BoardingJob.TryFindVehicle` returns null on insufficient capacity without trying another active bus. Per-frame pointer rotation could therefore phase-lock a resident to the same full lead bus.
 - 2026-07-23T10:16:00+01:00 [CODE] The overlay previously checked only the cached primary lane before drawing and could retain stale rear pieces or forward non-finite curve/width/save values to the native overlay buffer. All pieces and numeric inputs are now validated before any `DrawCurve`/handle operation.
@@ -291,6 +294,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-23T11:52:34+01:00 [TOOL] Live local package now contains the 54,272-byte `F48BCF8D...B3A50` target-zone stop-request DLL and seven matching companions. Rollback: `artifacts/pre-lead-stop-live-20260723-115214/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-23T11:33:48+01:00 [TOOL] Live local package now contains the 54,272-byte `5C1D91A0...FBAC` first-bus correction and seven matching companions. Rollback: `artifacts/pre-first-bus-native-live-20260723-113348/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-23T11:29:05+01:00 [TOOL] Corrected package staged at `artifacts/first-bus-native-20260723/ConcurrentBusBoarding`; DLL is 54,272 bytes, SHA-256 `5C1D91A07F0BE038AEB6705C721743B956637E2352A393CDC605BCFBDB47FBAC`. Source is committed as `73516c3`; live deployment and gameplay confirmation remain.
 - 2026-07-23T11:11:55+01:00 [TOOL] The live local package now contains the 54,272-byte rear-boarding DLL `403501CD...7AF9` and seven matching companions. Rollback: `artifacts/pre-rear-boarding-live-20260723-1112/ConcurrentBusBoarding`. Gameplay confirmation remains.

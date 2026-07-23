@@ -209,3 +209,29 @@ Verification:
   `artifacts/pre-first-bus-native-live-20260723-113348/ConcurrentBusBoarding`.
 - Gameplay confirmation remains: verify that an empty first bus stops and enters native boarding, then that a stopped
   follower boards concurrently and receives passengers when the lead bus is full.
+
+### Target-zone stop request (2026-07-23)
+
+Gameplay showed that an empty first bus could still pass a stop with waiting passengers: its target changed to the next
+waypoint as it reached the stop. Installed 1.6.0 IL shows that residents normally set
+`PublicTransportFlags.RequireStop`, but resident and vehicle AI update independently. If no resident partition marks
+the approaching bus before vehicle AI reaches the waypoint, native AI can advance it without starting boarding.
+
+`ConcurrentBoardingSystem` now sets that same native `RequireStop` flag when an unmanaged bus is inside its target
+stop's valid boarding zone and the zone has admission capacity. It does not alter navigation, movement, transforms, or
+the target waypoint. The first bus still enters the paired native boarding lifecycle; a stopped follower still uses
+managed admission only after a lead session exists.
+
+Verification:
+
+- Policy checks cover eligible, out-of-zone/full-zone, and already-boarding stop-request decisions.
+- The UI production bundle and zone-editor smoke check pass.
+- Whitespace verification and `git diff --check` pass.
+- The official toolchain builds `artifacts/lead-bus-require-stop-20260723/ConcurrentBusBoarding` with 0 warnings and
+  0 errors.
+- The staged and live 54,272-byte DLL SHA-256 is
+  `F48BCF8D1706D3921EA3AE87430EA4596FA2351B3CCD170FD040BCCB0A4B3A50`.
+- All eight staged files were copied to the live local Mods package and verified byte-for-byte. The replaced package
+  is recoverable from `artifacts/pre-lead-stop-live-20260723-115214/ConcurrentBusBoarding`.
+- Gameplay confirmation remains: verify that an empty first bus stops for waiting passengers, then verify a follower
+  behind a full lead bus also stops and boards.

@@ -218,16 +218,31 @@ namespace ConcurrentBusBoarding
                     if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus) ||
                         EntityManager.HasComponent<BoardingZoneApproach>(bus))
                         continue;
-                    if (!BoardingPolicy.CanBeginSyntheticBoarding(activeBuses.Count))
-                        continue;
 
                     bool closeToStop = hasZone && BoardingHelpers.IsCloseToStop(EntityManager, bus, zone);
-                    float speed = BoardingHelpers.GetSpeed(EntityManager, bus);
-                    if (!closeToStop || speed > BoardingPolicy.BoardingSpeedTolerance)
+                    if (!closeToStop)
                         continue;
                     float candidateLength = BoardingHelpers.GetVehicleLength(EntityManager, bus);
-                    if (!BoardingPolicy.CanAdmit(zone.IsCustom, pullIn, activeBuses.Count, occupiedLength,
-                        candidateLength, BoardingHelpers.GetZoneLength(zone), true))
+                    bool canAdmit = BoardingPolicy.CanAdmit(
+                        zone.IsCustom, pullIn, activeBuses.Count, occupiedLength,
+                        candidateLength, BoardingHelpers.GetZoneLength(zone), true);
+                    if (!canAdmit)
+                        continue;
+
+                    VehiclePublicTransport transport =
+                        EntityManager.GetComponentData<VehiclePublicTransport>(bus);
+                    if (BoardingPolicy.ShouldRequestStop(
+                            canAdmit, (transport.m_State & PublicTransportFlags.Boarding) != 0) &&
+                        (transport.m_State & PublicTransportFlags.RequireStop) == 0)
+                    {
+                        transport.m_State |= PublicTransportFlags.RequireStop;
+                        EntityManager.SetComponentData(bus, transport);
+                        CrashBreadcrumbs.Write($"require-stop bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+                    }
+
+                    if (!BoardingPolicy.CanBeginSyntheticBoarding(activeBuses.Count) ||
+                        BoardingHelpers.GetSpeed(EntityManager, bus) >
+                            BoardingPolicy.BoardingSpeedTolerance)
                         continue;
 
                     CrashBreadcrumbs.Write($"boarding-begin before bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
