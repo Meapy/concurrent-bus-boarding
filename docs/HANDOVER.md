@@ -182,5 +182,7 @@ Verification:
 - The official toolchain builds `artifacts/rear-boarding-20260723/ConcurrentBusBoarding` with 0 warnings and 0 errors.
 - The staged 54,272-byte DLL SHA-256 is
   `403501CDD3DB9E12B2C756BE8666978E4CE9071BBB4464ACA0E2981276157AF9`.
-- Cities II was running during the build, so the live Mods package was deliberately not changed. Close the game before
-  deploying this candidate, then test a full lead bus, a following bus with capacity, and unloading from both buses.
+- After Cities II closed, all eight staged files were copied to the live local Mods package and their SHA-256 hashes
+  were verified. The replaced hardening/reset package is recoverable from
+  `artifacts/pre-rear-boarding-live-20260723-1112/ConcurrentBusBoarding`.
+- Gameplay confirmation remains: test a full lead bus, a following bus with capacity, and unloading from both buses.

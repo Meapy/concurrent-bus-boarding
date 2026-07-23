@@ -140,6 +140,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-23T11:11:55+01:00 [TOOL] After the user closed Cities II, backed up the prior live package, copied the complete eight-file rear-boarding candidate to the local Mods folder, and verified every staged/live SHA-256 hash.
 - 2026-07-23T11:09:51+01:00 [TOOL] Sticky passenger selection passes policy, UI smoke, whitespace/diff, and official 1.6.0 Release checks with 0 warnings/errors. Cities II is running, so only the isolated staged package was updated.
 - 2026-07-23T10:36:00+01:00 [TOOL] Cities II was closed. Backed up the prior diagnostic-v6 live package, copied all eight verified files to the exact local `ConcurrentBusBoarding` Mods folder, and confirmed every staged/live SHA-256 matches.
 - 2026-07-23T10:27:00+01:00 [TOOL] The global zone-reset action passes policy, native settings API compilation, whitespace/diff checks, webpack UI smoke testing, and the official 1.6.0 Release build with 0 warnings/errors.
@@ -285,6 +286,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-23T11:11:55+01:00 [TOOL] The live local package now contains the 54,272-byte rear-boarding DLL `403501CD...7AF9` and seven matching companions. Rollback: `artifacts/pre-rear-boarding-live-20260723-1112/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-23T11:09:51+01:00 [TOOL] Rear-bus retry candidate staged at `artifacts/rear-boarding-20260723/ConcurrentBusBoarding`; DLL is 54,272 bytes, SHA-256 `403501CDD3DB9E12B2C756BE8666978E4CE9071BBB4464ACA0E2981276157AF9`. Live deployment and gameplay confirmation remain because Cities II is running.
 - 2026-07-23T10:36:00+01:00 [TOOL] The 54,272-byte `898DF2E4...D6E0` hardening/reset DLL and its seven matching package companions are installed locally for testing. Rollback copy: `artifacts/pre-hardening-live-20260723-1029/ConcurrentBusBoarding`. A game restart and the documented gameplay/save-reset matrix remain.
 - 2026-07-23T10:27:00+01:00 [TOOL] Supersedes the 10:16 staged artifact: the confirmed current-city reset candidate is a 54,272-byte DLL with SHA-256 `898DF2E4FF1C4AC227F095EA21B4520235379DEA1495835540305B02F3F7D6E0`. It remains isolated on `feature/crash-hardening`; in-game confirmation and save/reload testing remain.
