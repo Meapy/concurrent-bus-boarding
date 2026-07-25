@@ -291,3 +291,20 @@ merged, the exact package above is accepted by ModPublisher, and both GitHub and
   persistence model, exact build hashes, and remaining gameplay gate. In-game confirmation remains for Options
   visibility, both colour-wheel locations, selected-stop overlay visibility, global updates, line recolouring, shared
   stops, old/new save loading, save/reload, separate resets, selected-only rendering, and map editing.
+- A second gameplay report showed why transparency still behaved incorrectly: the native RGB-only colour picker
+  returned alpha 1.0, and the trigger persisted it as `GlobalOverlayAlpha = 255`. RGB and opacity are now independent.
+  `OverlayOpacity` is a native 5–60% Options slider with an 18% default; every global, stop-custom, line-custom, and
+  native-line colour uses that alpha.
+- The selected-stop wheel now writes `BoardingZoneCustomColor` either to the stop or to its first served route,
+  controlled by a **This stop / Whole line** toggle. Stop custom, explicit native-line, and explicit-global choices
+  take precedence over inherited route custom colour. Line-wide custom colour is discovered across connected routes
+  so shared stops can inherit it. The separate reset-colours action removes source and custom-colour components.
+- UI smoke, policy, formatting, diff, and official 1.6.0 Release checks pass. The exact eight-file final package is
+  staged in `artifacts/overlay-colour-scope-20260725/ConcurrentBusBoarding` and deployed while Cities II is closed.
+  Its 62,464-byte DLL SHA-256 is
+  `91C199FB893F5463092F9F674A6FEFD54B1459C98631F76E39D2781A38503CA7`; MJS SHA-256 is
+  `4AEEAF245C87EEBD9520C85209D71E45A7F8E25CBE767DD8F5E34E3A74EDA8B5`.
+- The replaced intermediate package is recoverable from
+  `artifacts/pre-overlay-colour-scope-live-20260725/ConcurrentBusBoarding`. The rewritten mixed-root settings file is
+  recoverable as `ConcurrentBusBoarding.coc.pre-opacity-scope-20260725`; next launch will generate clean defaults.
+  Gameplay confirmation remains required before merging.

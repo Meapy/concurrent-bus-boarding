@@ -44,6 +44,10 @@ namespace ConcurrentBusBoarding
         public int GlobalOverlayAlpha { get; set; }
 
         [SettingsUISection(MainSection, DisplayGroup)]
+        [SettingsUISlider(min = 5f, max = 60f, step = 1f, unit = "%")]
+        public int OverlayOpacity { get; set; }
+
+        [SettingsUISection(MainSection, DisplayGroup)]
         [SettingsUIButton]
         [SettingsUIConfirmation(null,
             "Reset every customized bus boarding zone in the current city? This cannot be undone.")]
@@ -68,36 +72,41 @@ namespace ConcurrentBusBoarding
             GlobalOverlayGreen = 140;
             GlobalOverlayBlue = 242;
             GlobalOverlayAlpha = 71;
+            OverlayOpacity = 18;
         }
 
         internal UnityColor GetGlobalOverlayColor()
         {
-            if (GlobalOverlayRed == 0 && GlobalOverlayGreen == 0 &&
-                GlobalOverlayBlue == 0 && GlobalOverlayAlpha == 0)
-                return new UnityColor(0.15f, 0.55f, 0.95f, 0.28f);
+            if (GlobalOverlayRed == 0 && GlobalOverlayGreen == 0 && GlobalOverlayBlue == 0)
+                return new UnityColor(0.15f, 0.55f, 0.95f, GetOverlayAlpha());
             return new UnityColor(
                 math.clamp(GlobalOverlayRed, 0, 255) / 255f,
                 math.clamp(GlobalOverlayGreen, 0, 255) / 255f,
                 math.clamp(GlobalOverlayBlue, 0, 255) / 255f,
-                math.clamp(GlobalOverlayAlpha, 0, 255) / 255f);
+                GetOverlayAlpha());
         }
 
-        internal bool SetGlobalOverlayColor(string rgba)
+        internal float GetOverlayAlpha()
         {
-            if (rgba == null || rgba.Length != 8 ||
-                !byte.TryParse(rgba.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+            int opacity = OverlayOpacity;
+            if (opacity < 5 || opacity > 60)
+                opacity = 18;
+            return opacity / 100f;
+        }
+
+        internal bool SetGlobalOverlayColor(string rgb)
+        {
+            if (rgb == null || (rgb.Length != 6 && rgb.Length != 8) ||
+                !byte.TryParse(rgb.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture,
                     out byte red) ||
-                !byte.TryParse(rgba.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                !byte.TryParse(rgb.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture,
                     out byte green) ||
-                !byte.TryParse(rgba.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture,
-                    out byte blue) ||
-                !byte.TryParse(rgba.Substring(6, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture,
-                    out byte alpha))
+                !byte.TryParse(rgb.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                    out byte blue))
                 return false;
             GlobalOverlayRed = red;
             GlobalOverlayGreen = green;
             GlobalOverlayBlue = blue;
-            GlobalOverlayAlpha = alpha;
             ApplyAndSave();
             return true;
         }
@@ -127,7 +136,11 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ChooseGlobalOverlayColor)),
                     "Global overlay colour" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ChooseGlobalOverlayColor)),
-                    "Choose the default boarding-zone overlay colour with the colour wheel. Stops using their line colour retain this colour's transparency." },
+                    "Choose the default boarding-zone colour. Stops using a custom or native line colour keep the global opacity." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.OverlayOpacity)),
+                    "Overlay opacity" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.OverlayOpacity)),
+                    "Set boarding-zone opacity. Lower percentages make every overlay more transparent." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
                     "Reset all customized zones" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
