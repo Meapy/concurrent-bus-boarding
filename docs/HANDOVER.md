@@ -259,20 +259,20 @@ Remote state is unchanged. The official Paradox `NewVersion` upload and `git pus
 by the execution service's usage limit. Do not record version 1.2.0 as public until the branch is pushed, its PR is
 merged, the exact package above is accepted by ModPublisher, and both GitHub and public mod `152153` are verified.
 
-### Overlay colour customization plan (2026-07-25)
+### Overlay colour customization (2026-07-25)
 
-Planning only; no feature code has been changed. The proposed implementation is:
-
-- Add a native colour setting for the global boarding-zone overlay, defaulting to the current ordinary-zone blue.
-- Add a separate serializable per-stop colour-mode component. Component absence means the global colour; the only
-  override mode initially means use the served line colour. Keeping this separate preserves the released
-  `BoardingZoneOverride` save layout.
-- Resolve the native line colour directly from each stop's `ConnectedRoute` waypoint owner and `Game.Routes.Color`.
-  Use line RGB with the global alpha so overlays stay translucent and global opacity remains consistent.
-- For a stop served by multiple lines, use the first line in the native connected-route/Lines ordering. Fall back to
-  the global colour if no valid bus-line colour is available.
-- Expose **Global colour** / **Line colour** in the existing selected-stop zone editor, remove the component when the
-  player returns to global, and include colour overrides in the existing reset-all action.
-- Cover fallback/mode selection with the dependency-free policy check, extend the UI smoke test, run the UI production
-  build and official Release build, then verify new/old saves, save/reload, line recolouring, shared stops, deletion,
-  selected-only overlays, map editing, and reset-all behavior in game.
+- `GlobalOverlayColor` uses the game's native `UnityEngine.Color` settings field, giving the Options page a colour
+  wheel. Its default is the previous ordinary-zone blue with 0.28 alpha.
+- `BoardingZoneColorOverride` is a separate serializable per-stop component, preserving the released
+  `BoardingZoneOverride` layout. Component absence means global colour.
+- **Use line colour** resolves `ConnectedRoute.m_Waypoint -> Owner.m_Owner -> Game.Routes.Color`. It uses the first
+  valid route in the native connected-route/Lines order, follows later line RGB changes, retains global alpha, and
+  falls back to global when no valid route colour exists.
+- **Use global colour** removes only that stop's colour component. The existing confirmed reset still removes only
+  customized lengths; the new confirmed **Reset all stop overlay colours** action removes only colour overrides.
+- Policy checks, UI production bundling/smoke testing, `git diff --check`, whitespace formatting, and the official
+  Release build pass. The staged eight-file package is `artifacts/overlay-colours-20260725/ConcurrentBusBoarding`;
+  its 57,856-byte DLL SHA-256 is
+  `01ADFB45EBB022D426BFC1FCBBEE83F8709BDD92B7E96BB3F2BBC024ACDEA725`.
+- In-game confirmation remains for the colour wheel, global updates, line recolouring, shared stops, old/new save
+  loading, save/reload, separate resets, selected-only rendering, and map editing.

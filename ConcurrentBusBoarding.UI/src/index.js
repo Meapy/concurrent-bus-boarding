@@ -6,6 +6,7 @@ const zoneEditor$ = bindValue("ConcurrentBusBoarding", "zoneEditor", {
   visible: false,
   available: false,
   customized: false,
+  lineColor: false,
   editing: false,
   offset: 0,
   length: 26
@@ -45,6 +46,7 @@ export default function register(moduleRegistry) {
         trigger("ConcurrentBusBoarding", "setZone", 0, value);
       };
       const reset = () => trigger("ConcurrentBusBoarding", "resetZone");
+      const toggleLineColor = () => trigger("ConcurrentBusBoarding", "setLineColor", !zone.lineColor);
       const toggleEditing = () => trigger("ConcurrentBusBoarding", "toggleZoneEditing");
 
       return React.createElement(
@@ -84,6 +86,15 @@ export default function register(moduleRegistry) {
               disableFocus: true,
               left: "Boarding",
               right: "All stopped buses inside"
+            }),
+            React.createElement(InfoRow, {
+              disableFocus: true,
+              left: "Overlay colour",
+              right: React.createElement(Button, {
+                theme: secondaryButtonTheme,
+                className: styles.resetButton,
+                onSelect: toggleLineColor
+              }, zone.lineColor ? "Use global colour" : "Use line colour")
             }),
             React.createElement(InfoRow, {
               disableFocus: true,

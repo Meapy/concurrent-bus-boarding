@@ -3,6 +3,7 @@ using Colossal;
 using Colossal.IO.AssetDatabase;
 using Game.Modding;
 using Game.Settings;
+using UnityColor = UnityEngine.Color;
 
 namespace ConcurrentBusBoarding
 {
@@ -22,6 +23,9 @@ namespace ConcurrentBusBoarding
         public bool OnlyShowSelectedStop { get; set; }
 
         [SettingsUISection(MainSection, DisplayGroup)]
+        public UnityColor GlobalOverlayColor { get; set; }
+
+        [SettingsUISection(MainSection, DisplayGroup)]
         [SettingsUIButton]
         [SettingsUIConfirmation(null,
             "Reset every customized bus boarding zone in the current city? This cannot be undone.")]
@@ -30,7 +34,20 @@ namespace ConcurrentBusBoarding
             set => BoardingZoneEditorUISystem.RequestResetAllZones();
         }
 
-        public override void SetDefaults() => OnlyShowSelectedStop = true;
+        [SettingsUISection(MainSection, DisplayGroup)]
+        [SettingsUIButton]
+        [SettingsUIConfirmation(null,
+            "Reset every bus stop overlay colour to the global colour? This cannot be undone.")]
+        public bool ResetAllZoneColors
+        {
+            set => BoardingZoneEditorUISystem.RequestResetAllZoneColors();
+        }
+
+        public override void SetDefaults()
+        {
+            OnlyShowSelectedStop = true;
+            GlobalOverlayColor = new UnityColor(0.15f, 0.55f, 0.95f, 0.28f);
+        }
     }
 
     internal sealed class SettingsLocale : IDictionarySource
@@ -54,10 +71,18 @@ namespace ConcurrentBusBoarding
                     "Only show the selected stop" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.OnlyShowSelectedStop)),
                     "Hide boarding-zone overlays until a bus stop is selected. The zone remains visible while editing it on the map." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.GlobalOverlayColor)),
+                    "Global overlay colour" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.GlobalOverlayColor)),
+                    "Choose the default boarding-zone overlay colour with the colour wheel. Stops using their line colour retain this colour's transparency." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
                     "Reset all customized zones" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
-                    "Remove every saved per-stop zone length in the current city and return those stops to automatic sizing." }
+                    "Remove every saved per-stop zone length in the current city and return those stops to automatic sizing." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZoneColors)),
+                    "Reset all stop overlay colours" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZoneColors)),
+                    "Return every bus stop in the current city to the global overlay colour without changing customized zone lengths." }
             };
         }
 

@@ -16,8 +16,10 @@ namespace ConcurrentBusBoarding
         private const string BindingGroup = "ConcurrentBusBoarding";
         private const int UpdateEveryFrames = 10;
         private static volatile bool s_ResetAllRequested;
+        private static volatile bool s_ResetAllColorsRequested;
 
         private EntityQuery m_ZoneOverrides;
+        private EntityQuery m_ColorOverrides;
         private SelectedInfoUISystem m_SelectedInfo;
         private BoardingZoneRenderSystem m_RenderSystem;
         private BoardingZoneToolSystem m_ZoneTool;
@@ -33,6 +35,10 @@ namespace ConcurrentBusBoarding
                 ComponentType.ReadOnly<BoardingZoneOverride>(),
                 ComponentType.Exclude<Deleted>(),
                 ComponentType.Exclude<Game.Tools.Temp>());
+            m_ColorOverrides = GetEntityQuery(
+                ComponentType.ReadOnly<BoardingZoneColorOverride>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
             m_SelectedInfo = World.GetOrCreateSystemManaged<SelectedInfoUISystem>();
             m_RenderSystem = World.GetOrCreateSystemManaged<BoardingZoneRenderSystem>();
             m_ZoneTool = World.GetOrCreateSystemManaged<BoardingZoneToolSystem>();
@@ -41,6 +47,8 @@ namespace ConcurrentBusBoarding
             AddUpdateBinding(new RawValueBinding(BindingGroup, "zoneEditor", WriteEditor));
             AddBinding(new TriggerBinding<float, float>(BindingGroup, "setZone", SetZone,
                 ValueReaders.Create<float>(), ValueReaders.Create<float>()));
+            AddBinding(new TriggerBinding<bool>(BindingGroup, "setLineColor", SetLineColor,
+                ValueReaders.Create<bool>()));
             AddBinding(new TriggerBinding(BindingGroup, "resetZone", ResetZone));
             AddBinding(new TriggerBinding(BindingGroup, "toggleZoneEditing", ToggleZoneEditing));
         }
@@ -52,6 +60,11 @@ namespace ConcurrentBusBoarding
             {
                 s_ResetAllRequested = false;
                 ResetAllZones();
+            }
+            if (s_ResetAllColorsRequested)
+            {
+                s_ResetAllColorsRequested = false;
+                ResetAllZoneColors();
             }
             if (m_ZoneTool.EditingStop != Entity.Null && TryGetSelectedStop(out Entity selectedStop) &&
                 selectedStop != m_ZoneTool.EditingStop)
@@ -91,6 +104,9 @@ namespace ConcurrentBusBoarding
             writer.Write(available);
             writer.PropertyName("customized");
             writer.Write(customized);
+            writer.PropertyName("lineColor");
+            writer.Write(visible && EntityManager.HasComponent<BoardingZoneColorOverride>(stop) &&
+                EntityManager.GetComponentData<BoardingZoneColorOverride>(stop).m_UseLineColor);
             writer.PropertyName("editing");
             writer.Write(visible && m_ZoneTool.EditingStop == stop);
             writer.PropertyName("offset");
@@ -123,7 +139,27 @@ namespace ConcurrentBusBoarding
             Refresh();
         }
 
+        private void SetLineColor(bool useLineColor)
+        {
+            if (!TryGetSelectedStop(out Entity stop))
+                return;
+            if (useLineColor)
+            {
+                var color = new BoardingZoneColorOverride(true);
+                if (EntityManager.HasComponent<BoardingZoneColorOverride>(stop))
+                    EntityManager.SetComponentData(stop, color);
+                else
+                    EntityManager.AddComponentData(stop, color);
+            }
+            else if (EntityManager.HasComponent<BoardingZoneColorOverride>(stop))
+            {
+                EntityManager.RemoveComponent<BoardingZoneColorOverride>(stop);
+            }
+            Refresh();
+        }
+
         internal static void RequestResetAllZones() => s_ResetAllRequested = true;
+        internal static void RequestResetAllZoneColors() => s_ResetAllColorsRequested = true;
 
         private void ResetAllZones()
         {
@@ -132,6 +168,17 @@ namespace ConcurrentBusBoarding
             {
                 EntityManager.RemoveComponent<BoardingZoneOverride>(m_ZoneOverrides);
                 Mod.Log.Info($"Reset {count} customized boarding zone(s)");
+            }
+            Refresh();
+        }
+
+        private void ResetAllZoneColors()
+        {
+            int count = m_ColorOverrides.CalculateEntityCount();
+            if (count != 0)
+            {
+                EntityManager.RemoveComponent<BoardingZoneColorOverride>(m_ColorOverrides);
+                Mod.Log.Info($"Reset {count} bus stop overlay colour override(s)");
             }
             Refresh();
         }

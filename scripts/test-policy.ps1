@@ -15,6 +15,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $boardingSystems = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingSystems.cs"
 $settings = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoardingSettings.cs"
 $zoneEditor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneEditorUISystem.cs"
+$zoneRenderer = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneRenderSystem.cs"
+$colorOverride = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneColorOverride.cs"
 $project = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoarding.csproj"
 $breadcrumbs = Get-Content -Raw "$root\ConcurrentBusBoarding\CrashBreadcrumbs.cs"
 if ($boardingSystems -notmatch 'm_DepartureFrame = math\.max' -or
@@ -85,4 +87,12 @@ if ($settings -notmatch '\[SettingsUIButton\][\s\S]*?\[SettingsUIConfirmation' -
     $zoneEditor -notmatch 'ComponentType\.ReadOnly<BoardingZoneOverride>\(\)' -or
     $zoneEditor -notmatch 'RemoveComponent<BoardingZoneOverride>\(m_ZoneOverrides\)') {
     throw 'The confirmed global reset must remove every live per-stop zone override through the UI system.'
+}
+if ($settings -notmatch 'UnityColor GlobalOverlayColor' -or
+    $settings -notmatch 'RequestResetAllZoneColors\(\)' -or
+    $zoneEditor -notmatch 'RemoveComponent<BoardingZoneColorOverride>\(m_ColorOverrides\)' -or
+    $colorOverride -notmatch 'struct BoardingZoneColorOverride : IComponentData, ISerializable' -or
+    $zoneRenderer -notmatch 'HasComponent<Game\.Routes\.Color>\(route\)' -or
+    $zoneRenderer -notmatch 'line\.a = global\.a') {
+    throw 'Overlay colours must use the native global colour field, saved per-stop line mode, and separate colour reset.'
 }

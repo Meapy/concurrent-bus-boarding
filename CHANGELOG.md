@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add a colour wheel for the global boarding-zone overlay colour.
+- Let individual bus stops use their first served line's colour while retaining global transparency.
+- Add a separate confirmed action that resets all per-stop colour choices without changing customized zone lengths.
+
 ## 1.2.0 - 2026-07-23
 
 - Show mod-reported errors in the in-game error UI.
