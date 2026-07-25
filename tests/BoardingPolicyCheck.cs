@@ -120,6 +120,10 @@ internal static class BoardingPolicyCheck
         Expect(BoardingPolicy.CanRestoreRoute(true, true, false), "valid active route can be restored");
         Expect(!BoardingPolicy.CanRestoreRoute(true, false, false), "stale target blocks route restoration");
         Expect(!BoardingPolicy.CanRestoreRoute(true, true, true), "retiring bus blocks route restoration");
+        Expect(Near(BoardingPolicy.TransitCostMultiplier(50), 2f), "minimum attractiveness doubles cost");
+        Expect(Near(BoardingPolicy.TransitCostMultiplier(100), 1f), "vanilla attractiveness preserves cost");
+        Expect(Near(BoardingPolicy.TransitCostMultiplier(200), 0.5f), "maximum attractiveness halves cost");
+        Expect(Near(BoardingPolicy.TransitCostMultiplier(0), 1f), "invalid attractiveness preserves cost");
         int[] split = new int[3];
         for (uint turn = 0; turn < 10; turn++)
             split[BoardingPolicy.RotationIndex(split.Length, turn, 0)]++;

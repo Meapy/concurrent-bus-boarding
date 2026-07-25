@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add a 50–200% public transport attractiveness slider; 100% preserves vanilla passenger-route costs.
+
 ## 1.3.0 - 2026-07-25
 
 - Add a colour wheel for the global boarding-zone overlay colour.
