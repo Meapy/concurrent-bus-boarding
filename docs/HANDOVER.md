@@ -258,3 +258,66 @@ Release input:
 Remote state is unchanged. The official Paradox `NewVersion` upload and `git push` were each rejected before execution
 by the execution service's usage limit. Do not record version 1.2.0 as public until the branch is pushed, its PR is
 merged, the exact package above is accepted by ModPublisher, and both GitHub and public mod `152153` are verified.
+
+### Overlay colour customization (2026-07-25)
+
+- The first deployed candidate failed in game. `Player.log` recorded
+  `TargetParameterCountException` in `Colossal.Json.DiffUtility.DiffObject`: settings reflection traversed
+  `UnityEngine.Color.Item` without its required index parameter. The unsupported property was also omitted from
+  Options, and the new value loaded as transparent black, hiding selected-stop overlays.
+- The corrected settings model persists four hidden integer RGBA channels. A visible
+  `ChooseGlobalOverlayColor` settings button is replaced in the frontend with the installed game's native
+  `ColorCustomizeField`, which opens its radial colour wheel. The same wheel is shown in the selected-stop panel when
+  that stop uses the global colour. An all-zero missing value safely falls back to the previous blue at 0.28 alpha.
+- `BoardingZoneColorOverride` is a separate serializable per-stop component, preserving the released
+  `BoardingZoneOverride` layout. Component absence means global colour.
+- **Use line colour** resolves `ConnectedRoute.m_Waypoint -> Owner.m_Owner -> Game.Routes.Color`. It uses the first
+  valid route in the native connected-route/Lines order, follows later line RGB changes, retains global alpha, and
+  falls back to global when no valid route colour exists.
+- **Use global colour** removes only that stop's colour component. The existing confirmed reset still removes only
+  customized lengths; the new confirmed **Reset all stop overlay colours** action removes only colour overrides.
+- Policy checks, UI production bundling/smoke testing, `git diff --check`, and the official 1.6.0 Release build pass
+  with 0 warnings and 0 errors. The corrected live eight-file package was deployed by the official toolchain while
+  Cities II was closed; its 59,392-byte DLL SHA-256 is
+  `40F6FCD89242BC79FF88586979DD4726A9AB2438CCEE30C7043D9BE1948E2C81` and its MJS SHA-256 is
+  `F3D58655171A5D31BCEFF4E0023F3C748D6DB438EB05C00CF21D2F02C6156F49`.
+- The malformed local settings file was moved, not deleted, to
+  `ConcurrentBusBoarding.coc.broken-overlay-colour-20260725`. It contained the incorrect root type
+  `ConcurrentBusBoarding.Color`; the corrected build will regenerate settings defaults on next launch. City-saved
+  zone lengths and per-stop colour-source components are unaffected.
+- Source is pushed on `feature/overlay-colours`; draft PR #5 is
+  `https://github.com/Meapy/concurrent-bus-boarding/pull/5`.
+- Corrected runtime commit `583163a` is pushed and the draft PR body records the regression, root cause, replacement
+  persistence model, exact build hashes, and remaining gameplay gate. In-game confirmation remains for Options
+  visibility, both colour-wheel locations, selected-stop overlay visibility, global updates, line recolouring, shared
+  stops, old/new save loading, save/reload, separate resets, selected-only rendering, and map editing.
+- A second gameplay report showed why transparency still behaved incorrectly: the native RGB-only colour picker
+  returned alpha 1.0, and the trigger persisted it as `GlobalOverlayAlpha = 255`. RGB and opacity are now independent.
+  `OverlayOpacity` is a native 5–60% Options slider with an 18% default; every global, stop-custom, line-custom, and
+  native-line colour uses that alpha.
+- The selected-stop wheel now writes `BoardingZoneCustomColor` either to the stop or to its first served route,
+  controlled by a **This stop / Whole line** toggle. Stop custom, explicit native-line, and explicit-global choices
+  take precedence over inherited route custom colour. Line-wide custom colour is discovered across connected routes
+  so shared stops can inherit it. The separate reset-colours action removes source and custom-colour components.
+- UI smoke, policy, formatting, diff, and official 1.6.0 Release checks pass. The exact eight-file final package is
+  staged in `artifacts/overlay-colour-scope-20260725/ConcurrentBusBoarding` and deployed while Cities II is closed.
+  Its 62,464-byte DLL SHA-256 is
+  `91C199FB893F5463092F9F674A6FEFD54B1459C98631F76E39D2781A38503CA7`; MJS SHA-256 is
+  `4AEEAF245C87EEBD9520C85209D71E45A7F8E25CBE767DD8F5E34E3A74EDA8B5`.
+- The replaced intermediate package is recoverable from
+  `artifacts/pre-overlay-colour-scope-live-20260725/ConcurrentBusBoarding`. The rewritten mixed-root settings file is
+  recoverable as `ConcurrentBusBoarding.coc.pre-opacity-scope-20260725`; next launch will generate clean defaults.
+  Gameplay confirmation remains required before merging.
+- Implementation commit `bbf53ab` is pushed to `feature/overlay-colours`. Draft PR #5 is open with its title,
+  behavior, verification, exact deployed hashes, and remaining gameplay checks updated. GitGuardian passes; GitHub
+  reported mergeability `UNKNOWN` while recalculating after the handover-only push. Do not mark it ready or merge it
+  until the global wheel, opacity slider, stop/line scope, presets, persistence, and boarding behavior pass in-game.
+- Served stops now inherit a custom line colour or their first route's native colour when no stop choice is saved;
+  explicit Global and custom-stop choices still win. The panel replaces the stacked source/scope actions with compact,
+  active **This stop / Whole line** and **Global / Line colour** selectors. Policy, UI production/smoke, formatting,
+  diff, and the official 1.6.0 Release build pass with 0 warnings/errors. The behaviorally complete candidate is live,
+  but Cities II started before the final unused-binding/CSS cleanup could be copied. The exact final staged DLL is
+  62,464 bytes with SHA-256 `E67F42BA38363B13B7F3EE9B87C4331DAD4AED78EC249C551AA20A00724733D0`;
+  MJS is 5,368 bytes with SHA-256 `FA87544CC02304D73A005F6159DF0BFE5A2A1153DC03C83379B073807A0FD638`.
+  Install it after the game closes. The prior package is recoverable from
+  `artifacts/pre-default-line-ui-live-20260725/ConcurrentBusBoarding`.

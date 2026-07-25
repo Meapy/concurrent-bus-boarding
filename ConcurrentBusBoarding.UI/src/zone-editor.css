@@ -13,3 +13,28 @@
   font-size: 16rem;
   text-transform: none;
 }
+
+.segmentedButton {
+  display: flex;
+  align-items: center;
+  padding: 2rem;
+  font-size: 14rem;
+  text-transform: none;
+}
+
+.segment {
+  min-width: 96rem;
+  padding: 6rem 8rem;
+  border-radius: 4rem;
+  text-align: center;
+}
+
+.segmentActive {
+  background-color: rgba(45, 166, 207, 0.38);
+  box-shadow: inset 0 0 0 1rem rgba(113, 220, 255, 0.95);
+}
+
+.colorField {
+  width: 40rem;
+  height: 32rem;
+}

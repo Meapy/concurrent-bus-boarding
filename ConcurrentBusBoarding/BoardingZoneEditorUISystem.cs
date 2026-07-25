@@ -1,3 +1,4 @@
+using System.Globalization;
 using Colossal.UI.Binding;
 using Game;
 using Game.Common;
@@ -8,6 +9,7 @@ using Game.UI.InGame;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine.Scripting;
+using UnityColor = UnityEngine.Color;
 
 namespace ConcurrentBusBoarding
 {
@@ -16,8 +18,11 @@ namespace ConcurrentBusBoarding
         private const string BindingGroup = "ConcurrentBusBoarding";
         private const int UpdateEveryFrames = 10;
         private static volatile bool s_ResetAllRequested;
+        private static volatile bool s_ResetAllColorsRequested;
 
         private EntityQuery m_ZoneOverrides;
+        private EntityQuery m_ColorOverrides;
+        private EntityQuery m_CustomColors;
         private SelectedInfoUISystem m_SelectedInfo;
         private BoardingZoneRenderSystem m_RenderSystem;
         private BoardingZoneToolSystem m_ZoneTool;
@@ -33,6 +38,14 @@ namespace ConcurrentBusBoarding
                 ComponentType.ReadOnly<BoardingZoneOverride>(),
                 ComponentType.Exclude<Deleted>(),
                 ComponentType.Exclude<Game.Tools.Temp>());
+            m_ColorOverrides = GetEntityQuery(
+                ComponentType.ReadOnly<BoardingZoneColorOverride>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
+            m_CustomColors = GetEntityQuery(
+                ComponentType.ReadOnly<BoardingZoneCustomColor>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
             m_SelectedInfo = World.GetOrCreateSystemManaged<SelectedInfoUISystem>();
             m_RenderSystem = World.GetOrCreateSystemManaged<BoardingZoneRenderSystem>();
             m_ZoneTool = World.GetOrCreateSystemManaged<BoardingZoneToolSystem>();
@@ -41,6 +54,12 @@ namespace ConcurrentBusBoarding
             AddUpdateBinding(new RawValueBinding(BindingGroup, "zoneEditor", WriteEditor));
             AddBinding(new TriggerBinding<float, float>(BindingGroup, "setZone", SetZone,
                 ValueReaders.Create<float>(), ValueReaders.Create<float>()));
+            AddBinding(new TriggerBinding<bool>(BindingGroup, "setLineColor", SetLineColor,
+                ValueReaders.Create<bool>()));
+            AddBinding(new TriggerBinding<string>(BindingGroup, "setGlobalOverlayColor", SetGlobalOverlayColor,
+                ValueReaders.Create<string>()));
+            AddBinding(new TriggerBinding<string, bool>(BindingGroup, "setStopOverlayColor", SetStopOverlayColor,
+                ValueReaders.Create<string>(), ValueReaders.Create<bool>()));
             AddBinding(new TriggerBinding(BindingGroup, "resetZone", ResetZone));
             AddBinding(new TriggerBinding(BindingGroup, "toggleZoneEditing", ToggleZoneEditing));
         }
@@ -52,6 +71,11 @@ namespace ConcurrentBusBoarding
             {
                 s_ResetAllRequested = false;
                 ResetAllZones();
+            }
+            if (s_ResetAllColorsRequested)
+            {
+                s_ResetAllColorsRequested = false;
+                ResetAllZoneColors();
             }
             if (m_ZoneTool.EditingStop != Entity.Null && TryGetSelectedStop(out Entity selectedStop) &&
                 selectedStop != m_ZoneTool.EditingStop)
@@ -91,6 +115,22 @@ namespace ConcurrentBusBoarding
             writer.Write(available);
             writer.PropertyName("customized");
             writer.Write(customized);
+            writer.PropertyName("forceGlobal");
+            writer.Write(visible && EntityManager.HasComponent<BoardingZoneColorOverride>(stop) &&
+                !EntityManager.GetComponentData<BoardingZoneColorOverride>(stop).m_UseLineColor);
+            bool customStopColor = visible && EntityManager.HasComponent<BoardingZoneCustomColor>(stop);
+            Entity route = Entity.Null;
+            bool hasRoute = visible && m_RenderSystem.TryGetFirstRoute(stop, out route);
+            writer.PropertyName("customStopColor");
+            writer.Write(customStopColor);
+            writer.PropertyName("hasLine");
+            writer.Write(hasRoute);
+            UnityColor globalColor = Mod.Settings?.GetGlobalOverlayColor() ??
+                new UnityColor(0.15f, 0.55f, 0.95f, 0.18f);
+            WriteColor(writer, "globalColor", globalColor);
+            WriteColor(writer, "stopColor", visible ? m_RenderSystem.GetOverlayColor(stop) : globalColor);
+            WriteColor(writer, "routeColor",
+                hasRoute ? m_RenderSystem.GetRouteOverlayColor(route, globalColor) : globalColor);
             writer.PropertyName("editing");
             writer.Write(visible && m_ZoneTool.EditingStop == stop);
             writer.PropertyName("offset");
@@ -123,7 +163,46 @@ namespace ConcurrentBusBoarding
             Refresh();
         }
 
+        private void SetLineColor(bool useLineColor)
+        {
+            if (!TryGetSelectedStop(out Entity stop))
+                return;
+            var color = new BoardingZoneColorOverride(useLineColor);
+            if (EntityManager.HasComponent<BoardingZoneColorOverride>(stop))
+                EntityManager.SetComponentData(stop, color);
+            else
+                EntityManager.AddComponentData(stop, color);
+            if (EntityManager.HasComponent<BoardingZoneCustomColor>(stop))
+                EntityManager.RemoveComponent<BoardingZoneCustomColor>(stop);
+            Refresh();
+        }
+
+        private void SetGlobalOverlayColor(string rgba)
+        {
+            if (Mod.Settings != null && Mod.Settings.SetGlobalOverlayColor(rgba))
+                Refresh();
+        }
+
+        private void SetStopOverlayColor(string rgb, bool wholeLine)
+        {
+            if (!TryGetSelectedStop(out Entity stop) || rgb == null || rgb.Length != 6 ||
+                !int.TryParse(rgb, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int packed))
+                return;
+            Entity target = stop;
+            if (wholeLine && !m_RenderSystem.TryGetFirstRoute(stop, out target))
+                return;
+            var color = new BoardingZoneCustomColor(packed);
+            if (EntityManager.HasComponent<BoardingZoneCustomColor>(target))
+                EntityManager.SetComponentData(target, color);
+            else
+                EntityManager.AddComponentData(target, color);
+            if (!wholeLine && EntityManager.HasComponent<BoardingZoneColorOverride>(stop))
+                EntityManager.RemoveComponent<BoardingZoneColorOverride>(stop);
+            Refresh();
+        }
+
         internal static void RequestResetAllZones() => s_ResetAllRequested = true;
+        internal static void RequestResetAllZoneColors() => s_ResetAllColorsRequested = true;
 
         private void ResetAllZones()
         {
@@ -134,6 +213,36 @@ namespace ConcurrentBusBoarding
                 Mod.Log.Info($"Reset {count} customized boarding zone(s)");
             }
             Refresh();
+        }
+
+        private void ResetAllZoneColors()
+        {
+            int sourceCount = m_ColorOverrides.CalculateEntityCount();
+            int customCount = m_CustomColors.CalculateEntityCount();
+            if (sourceCount != 0)
+                EntityManager.RemoveComponent<BoardingZoneColorOverride>(m_ColorOverrides);
+            if (customCount != 0)
+                EntityManager.RemoveComponent<BoardingZoneCustomColor>(m_CustomColors);
+            if (sourceCount + customCount != 0)
+            {
+                Mod.Log.Info($"Reset {sourceCount + customCount} boarding-zone colour override(s)");
+            }
+            Refresh();
+        }
+
+        private static void WriteColor(IJsonWriter writer, string property, UnityColor color)
+        {
+            writer.PropertyName(property);
+            writer.TypeBegin("ConcurrentBusBoarding.Color");
+            writer.PropertyName("r");
+            writer.Write(color.r);
+            writer.PropertyName("g");
+            writer.Write(color.g);
+            writer.PropertyName("b");
+            writer.Write(color.b);
+            writer.PropertyName("a");
+            writer.Write(color.a);
+            writer.TypeEnd();
         }
 
         private void ToggleZoneEditing()

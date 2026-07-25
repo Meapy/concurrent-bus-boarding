@@ -18,8 +18,7 @@ namespace ConcurrentBusBoarding
 {
     public partial class BoardingZoneRenderSystem : GameSystemBase
     {
-        private static readonly UnityColor PullInColor = new UnityColor(0.05f, 0.55f, 1f, 0.42f);
-        private static readonly UnityColor OrdinaryColor = new UnityColor(0.15f, 0.55f, 0.95f, 0.28f);
+        private static readonly UnityColor DefaultOverlayColor = new UnityColor(0.15f, 0.55f, 0.95f, 0.18f);
         private static readonly UnityColor HandleColor = new UnityColor(0.1f, 0.85f, 1f, 0.95f);
 
         private EntityQuery m_Buses;
@@ -97,7 +96,7 @@ namespace ConcurrentBusBoarding
                 return;
             BoardingHelpers.ApplyOverride(EntityManager, stop, ref zone);
 
-            UnityColor color = zone.IsPullIn && !zone.IsCustom ? PullInColor : OrdinaryColor;
+            UnityColor color = GetOverlayColor(stop);
             float remaining = BoardingHelpers.GetRequestedZoneLength(zone);
             if (zone.Pieces == null)
                 return;
@@ -114,6 +113,95 @@ namespace ConcurrentBusBoarding
             if (m_ZoneTool.EditingStop == stop &&
                 BoardingHelpers.TryGetRearEdge(zone, out BoardingZonePiece rearPiece, out float2 rearBounds))
                 DrawEndHandles(buffer, rearPiece, rearPiece.Direction >= 0 ? rearBounds.x : rearBounds.y);
+        }
+
+        internal UnityColor GetOverlayColor(Entity stop)
+        {
+            UnityColor global = Mod.Settings?.GetGlobalOverlayColor() ?? DefaultOverlayColor;
+            if (!math.all(math.isfinite(new float4(global.r, global.g, global.b, global.a))))
+                global = DefaultOverlayColor;
+            global.r = math.saturate(global.r);
+            global.g = math.saturate(global.g);
+            global.b = math.saturate(global.b);
+            global.a = math.saturate(global.a);
+
+            if (EntityManager.HasComponent<BoardingZoneCustomColor>(stop))
+                return EntityManager.GetComponentData<BoardingZoneCustomColor>(stop).ToColor(global.a);
+
+            if (EntityManager.HasComponent<BoardingZoneColorOverride>(stop))
+            {
+                if (!EntityManager.GetComponentData<BoardingZoneColorOverride>(stop).m_UseLineColor)
+                    return global;
+            }
+            else if (TryGetCustomRouteColor(stop, global.a, out UnityColor routeColor))
+                return routeColor;
+
+            if (!TryGetFirstRoute(stop, out Entity nativeRoute) ||
+                !EntityManager.HasComponent<Game.Routes.Color>(nativeRoute))
+                return global;
+            UnityColor nativeLine = EntityManager.GetComponentData<Game.Routes.Color>(nativeRoute).m_Color;
+            nativeLine.a = global.a;
+            return nativeLine;
+        }
+
+        internal UnityColor GetRouteOverlayColor(Entity route, UnityColor global)
+        {
+            if (EntityManager.HasComponent<BoardingZoneCustomColor>(route))
+                return EntityManager.GetComponentData<BoardingZoneCustomColor>(route).ToColor(global.a);
+            if (EntityManager.HasComponent<Game.Routes.Color>(route))
+            {
+                UnityColor nativeLine = EntityManager.GetComponentData<Game.Routes.Color>(route).m_Color;
+                nativeLine.a = global.a;
+                return nativeLine;
+            }
+            return global;
+        }
+
+        internal bool TryGetFirstRoute(Entity stop, out Entity route)
+        {
+            route = Entity.Null;
+            if (!EntityManager.HasBuffer<ConnectedRoute>(stop))
+                return false;
+            DynamicBuffer<ConnectedRoute> routes = EntityManager.GetBuffer<ConnectedRoute>(stop, true);
+            foreach (ConnectedRoute connected in routes)
+            {
+                Entity waypoint = connected.m_Waypoint;
+                if (waypoint == Entity.Null || !EntityManager.Exists(waypoint) ||
+                    !EntityManager.HasComponent<Owner>(waypoint))
+                    continue;
+                route = EntityManager.GetComponentData<Owner>(waypoint).m_Owner;
+                if (route == Entity.Null || !EntityManager.Exists(route) ||
+                    EntityManager.HasComponent<Deleted>(route) ||
+                    EntityManager.HasComponent<Game.Tools.Temp>(route))
+                    continue;
+                return true;
+            }
+            route = Entity.Null;
+            return false;
+        }
+
+        private bool TryGetCustomRouteColor(Entity stop, float alpha, out UnityColor color)
+        {
+            color = default;
+            if (!EntityManager.HasBuffer<ConnectedRoute>(stop))
+                return false;
+            DynamicBuffer<ConnectedRoute> routes = EntityManager.GetBuffer<ConnectedRoute>(stop, true);
+            foreach (ConnectedRoute connected in routes)
+            {
+                Entity waypoint = connected.m_Waypoint;
+                if (waypoint == Entity.Null || !EntityManager.Exists(waypoint) ||
+                    !EntityManager.HasComponent<Owner>(waypoint))
+                    continue;
+                Entity route = EntityManager.GetComponentData<Owner>(waypoint).m_Owner;
+                if (route == Entity.Null || !EntityManager.Exists(route) ||
+                    EntityManager.HasComponent<Deleted>(route) ||
+                    EntityManager.HasComponent<Game.Tools.Temp>(route) ||
+                    !EntityManager.HasComponent<BoardingZoneCustomColor>(route))
+                    continue;
+                color = EntityManager.GetComponentData<BoardingZoneCustomColor>(route).ToColor(alpha);
+                return true;
+            }
+            return false;
         }
 
         private static void DrawEndHandles(OverlayRenderSystem.Buffer buffer, BoardingZonePiece piece, float curvePosition)

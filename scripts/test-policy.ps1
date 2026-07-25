@@ -15,6 +15,9 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $boardingSystems = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingSystems.cs"
 $settings = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoardingSettings.cs"
 $zoneEditor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneEditorUISystem.cs"
+$zoneRenderer = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneRenderSystem.cs"
+$colorOverride = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneColorOverride.cs"
+$customColor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneCustomColor.cs"
 $project = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoarding.csproj"
 $breadcrumbs = Get-Content -Raw "$root\ConcurrentBusBoarding\CrashBreadcrumbs.cs"
 if ($boardingSystems -notmatch 'm_DepartureFrame = math\.max' -or
@@ -85,4 +88,22 @@ if ($settings -notmatch '\[SettingsUIButton\][\s\S]*?\[SettingsUIConfirmation' -
     $zoneEditor -notmatch 'ComponentType\.ReadOnly<BoardingZoneOverride>\(\)' -or
     $zoneEditor -notmatch 'RemoveComponent<BoardingZoneOverride>\(m_ZoneOverrides\)') {
     throw 'The confirmed global reset must remove every live per-stop zone override through the UI system.'
+}
+if ($settings -match 'UnityColor GlobalOverlayColor' -or
+    $settings -notmatch '\[SettingsUIHidden\][\s\S]*?GlobalOverlayRed' -or
+    $settings -notmatch 'SettingsUISlider\(min = 5f, max = 60f, step = 1f, unit = "%"\)' -or
+    $settings -notmatch 'public int OverlayOpacity' -or
+    $settings -notmatch 'SetGlobalOverlayColor\(string rgb\)' -or
+    $zoneEditor -notmatch 'TriggerBinding<string>\(BindingGroup, "setGlobalOverlayColor"' -or
+    $zoneEditor -notmatch 'TriggerBinding<string, bool>\(BindingGroup, "setStopOverlayColor"' -or
+    $settings -notmatch 'RequestResetAllZoneColors\(\)' -or
+    $zoneEditor -notmatch 'RemoveComponent<BoardingZoneColorOverride>\(m_ColorOverrides\)' -or
+    $zoneEditor -notmatch 'RemoveComponent<BoardingZoneCustomColor>\(m_CustomColors\)' -or
+    $colorOverride -notmatch 'struct BoardingZoneColorOverride : IComponentData, ISerializable' -or
+    $customColor -notmatch 'struct BoardingZoneCustomColor : IComponentData, ISerializable' -or
+    $zoneRenderer -notmatch 'HasComponent<BoardingZoneCustomColor>\(route\)' -or
+    $zoneRenderer -notmatch 'else if \(TryGetCustomRouteColor\(stop, global\.a, out UnityColor routeColor\)\)' -or
+    $zoneRenderer -notmatch 'if \(!TryGetFirstRoute\(stop, out Entity nativeRoute\)' -or
+    $zoneRenderer -notmatch 'nativeLine\.a = global\.a') {
+    throw 'Overlay colours must use primitive settings, global opacity, default native line colours, saved stop/line custom colours, and separate colour reset.'
 }
