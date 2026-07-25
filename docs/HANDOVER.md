@@ -321,3 +321,13 @@ merged, the exact package above is accepted by ModPublisher, and both GitHub and
   MJS is 5,368 bytes with SHA-256 `FA87544CC02304D73A005F6159DF0BFE5A2A1153DC03C83379B073807A0FD638`.
   Install it after the game closes. The prior package is recoverable from
   `artifacts/pre-default-line-ui-live-20260725/ConcurrentBusBoarding`.
+- Supersedes the pending release/deployment state above: version 1.3.0 was built from the final single-focus segmented
+  selector source, preventing the live candidate's multiple-focus-key UI errors. PR #5 passed GitGuardian and merged
+  to `master` as `708c002`. `ModPublisher NewVersion` accepted the exact eight-file
+  `artifacts/release-1.3.0-final/ConcurrentBusBoarding` package for public mod `152153`. The official public API reports
+  latest version ID 5, user version `1.3.0`, public access, package size 47,722 bytes, and creation time
+  `2026-07-25T21:22:54Z`. The final 62,464-byte DLL SHA-256 is
+  `E008434C1D9B4EA37209D0E8077F2CE33D5208850373D793AFDE99C670A7D599`; the 5,200-byte MJS SHA-256 is
+  `51D5E17792D2DF6204FEBF787AFC32CDFEEE60B44E2E347B20D004187D758904`. Publisher output confirmed the Paradox
+  Forums `1935925` support URL and GitHub link. Cities II remained running, so the exact public package still needs
+  copying to the local Mods folder after the game closes; do not overwrite its loaded files.
