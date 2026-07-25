@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.4.1 - 2026-07-26
+
+- Integrate with All Aboard 0.1.13 even when it loads after Concurrent Bus Boarding.
+- Apply All Aboard's configured maximum bus dwell time to managed follower buses.
+- Let a managed follower leave after that dwell limit when a stale passenger-ready flag would otherwise keep it stuck in Boarding.
+
 ## 1.4.0 - 2026-07-25
 
 - Add a 50–200% public transport attractiveness slider; 100% preserves vanilla passenger-route costs.
