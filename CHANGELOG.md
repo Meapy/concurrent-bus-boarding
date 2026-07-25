@@ -2,7 +2,10 @@
 
 ## Unreleased
 
+## 1.4.0 - 2026-07-25
+
 - Add a 50–200% public transport attractiveness slider; 100% preserves vanilla passenger-route costs.
+- Initialize the slider at 100% for existing settings files that predate the option.
 
 ## 1.3.0 - 2026-07-25
 

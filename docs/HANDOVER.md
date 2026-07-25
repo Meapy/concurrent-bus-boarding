@@ -2,10 +2,17 @@
 
 ## Release candidate
 
-Version 1.1.0 is the published concurrent-boarding implementation for Cities: Skylines II 1.6.0.
+Version 1.4.0 is the current release candidate for Cities: Skylines II 1.6.0.
 
-> Diagnostic v6 was deployed with all eight hashes matching, and the user confirmed the corrected boarding and route
-> panel behavior works properly. Version 1.1.0 is approved for release as a clean non-diagnostic build.
+> Version 1.3.0 is the published concurrent-boarding and overlay-colour implementation. Version 1.4.0 adds one
+> global public-transport attractiveness slider without changing boarding, vehicle movement, or route ownership.
+
+- **Public transport attractiveness** ranges from 50% to 200%. The 100% default preserves native passenger-route
+  starting costs; higher values reduce those costs for every passenger transport line while cargo remains unchanged.
+- The slider initializes inline at 100 as well as through `SetDefaults()`, so settings files created before 1.4.0 do
+  not display C#'s zero-value default.
+- Each passenger line pathfinding prefab is adjusted from its captured native baseline, and native route edges are
+  refreshed only when the setting changes. Destroying the system restores the exact captured costs.
 
 - The native stop position is the fixed forward edge of every boarding zone. Ordinary zones extend 26 m backward;
   edited zones extend 6–200 m backward; automatic pull-ins use their usable physical lane behind the stop.
