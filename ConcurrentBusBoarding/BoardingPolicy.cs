@@ -12,6 +12,8 @@ namespace ConcurrentBusBoarding
         internal const float MinimumCustomZoneLength = 6f;
         internal const float MaximumCustomZoneLength = 200f;
         internal const uint ResidentUpdateFrames = 16u;
+        internal const uint ManagedBoardingTimeoutFrames = 1800u;
+        private const double SimulationFramesPerMinute = 182.044444444444;
 
         internal static bool IsPullInLane(bool secondaryLane, bool splitsFromRoad, bool mergesIntoRoad,
             bool sameRoadLaneTransition)
@@ -142,6 +144,19 @@ namespace ConcurrentBusBoarding
         {
             return frame >= departureFrame && maxBoardingDistance == float.MaxValue &&
                 (passengersReady || timedOut);
+        }
+
+        internal static uint BoardingTimeoutFrames(int minutes)
+        {
+            return minutes > 0 && minutes <= 60
+                ? (uint)(minutes * SimulationFramesPerMinute) + 1u
+                : ManagedBoardingTimeoutFrames;
+        }
+
+        internal static bool HasBoardingTimedOut(uint frame, uint departureFrame, uint timeoutFrames)
+        {
+            return departureFrame != 0 && frame >= departureFrame &&
+                frame - departureFrame >= timeoutFrames;
         }
 
         internal static bool ShouldExposeBoardingToVehicleAi(bool usesNativeBoarding, bool selected)

@@ -109,6 +109,16 @@ internal static class BoardingPolicyCheck
             "completed follower can leave");
         Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, true),
             "timed-out follower can leave despite a stuck passenger transition");
+        Expect(BoardingPolicy.BoardingTimeoutFrames(2) == 365,
+            "All Aboard's configured minutes use its exact simulation rate");
+        Expect(BoardingPolicy.BoardingTimeoutFrames(0) == BoardingPolicy.ManagedBoardingTimeoutFrames,
+            "invalid dwell setting uses the managed fallback");
+        Expect(!BoardingPolicy.HasBoardingTimedOut(99, 100, 1),
+            "timeout cannot occur before scheduled departure");
+        Expect(!BoardingPolicy.HasBoardingTimedOut(464, 100, 365),
+            "configured dwell delay remains available");
+        Expect(BoardingPolicy.HasBoardingTimedOut(465, 100, 365),
+            "configured dwell delay eventually releases the follower");
         Expect(BoardingPolicy.ShouldExposeBoardingToVehicleAi(true, true),
             "selected native session remains visible to vehicle AI");
         Expect(!BoardingPolicy.ShouldExposeBoardingToVehicleAi(false, true),
