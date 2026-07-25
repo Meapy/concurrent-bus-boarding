@@ -1,4 +1,6 @@
 [PLANS]
+- 2026-07-25T22:40:45+01:00 [USER] Investigate whether the mod can increase residents' likelihood of choosing public transport and propose the simplest adjustable implementation.
+- 2026-07-25T22:40:45+01:00 [ASSUMPTION] Pending approval, add one vanilla-centered global slider and one system that adjusts native passenger-line path cost from exact captured baselines, then refreshes only affected native route edges; no per-line controls or citizen, trip, boarding, or vehicle mutations.
 - 2026-07-25T22:29:18+01:00 [USER] Publish version 1.3.0, push the completed source, and merge the overlay-colour branch.
 - 2026-07-25T22:10:13+01:00 [USER] Make served bus stops use their line colour by default and simplify the selected-stop colour UI shown in the supplied screenshot.
 - 2026-07-25T21:40:07+01:00 [USER] Make the global colour affect overlays, lower default zone opacity, add an Options transparency slider, and let the selected-stop wheel target either that stop or its whole line through a toggle.
@@ -249,6 +251,9 @@
 - 2026-07-21T12:05:23+01:00 [TOOL] Committed the full pull-in lane and settling-threshold correction as `a9e66b6`, pushed `feature/concurrent-boarding`, and refreshed draft PR #1 with the Butler Street evidence and current verification.
 
 [DISCOVERIES]
+- 2026-07-25T22:40:45+01:00 [TOOL] Installed 1.6.0 `Game.dll` shows `ResidentAISystem.FindNewPath` enables walking, taxi, available public transport, and owned car/bicycle methods in one path request; `CitizenUtils.GetPathfindWeights` then applies time, behaviour, money, and comfort weights. There is no standalone public-transport probability field.
+- 2026-07-25T22:40:45+01:00 [TOOL] Passenger route edges are built by `RoutesModifiedSystem` from `TransportLineData.m_PathfindPrefab` and `PathfindTransportData`; stop edges combine starting cost with real wait time, ticket price, and stop comfort, while line travel cost is applied by route distance.
+- 2026-07-25T22:40:45+01:00 [TOOL] `RoutesModifiedSystem` has a pathfinder-only update query for `Common.PathfindUpdated` on access lanes, route lanes, segments, and spawn locations. Updating a prefab component alone does not refresh cached existing route edges.
 - 2026-07-25T21:40:07+01:00 [TOOL] The regenerated `.coc` proves the colour trigger worked (`RGB 114,142,194`) but the native picker forced alpha to 255. The game was still running when the earlier malformed file was moved, so its in-memory `ConcurrentBusBoarding.Color` block was later written back; the file is now preserved and retired while the game is closed.
 - 2026-07-25T21:22:08+01:00 [TOOL] `Player.log` proves `UnityEngine.Color` is unsafe in `ModSetting`: `DiffUtility` reflects its indexed `Item` member without an argument, causing `TargetParameterCountException`; the resulting `.coc` root became `ConcurrentBusBoarding.Color`, the Options row disappeared, and zero alpha hid overlays.
 - 2026-07-23T11:52:34+01:00 [TOOL] Installed 1.6.0 vehicle AI advances a reached route waypoint when boarding does not start, while resident boarding independently sets `PublicTransportFlags.RequireStop`. A first bus can therefore pass waiting passengers if vehicle AI reaches the waypoint before a resident partition requests the stop.
