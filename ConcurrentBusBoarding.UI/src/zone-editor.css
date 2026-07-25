@@ -14,10 +14,23 @@
   text-transform: none;
 }
 
-.colorControls {
+.choiceGroup {
   display: flex;
   align-items: center;
-  gap: 8rem;
+  gap: 4rem;
+}
+
+.choiceButton {
+  min-width: 104rem;
+  padding-left: 10rem;
+  padding-right: 10rem;
+  font-size: 14rem;
+  text-transform: none;
+}
+
+.choiceButtonActive {
+  background-color: rgba(45, 166, 207, 0.38);
+  border-color: rgba(113, 220, 255, 0.95);
 }
 
 .colorField {

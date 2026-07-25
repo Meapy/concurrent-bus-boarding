@@ -1,4 +1,5 @@
 [PLANS]
+- 2026-07-25T22:10:13+01:00 [USER] Make served bus stops use their line colour by default and simplify the selected-stop colour UI shown in the supplied screenshot.
 - 2026-07-25T21:40:07+01:00 [USER] Make the global colour affect overlays, lower default zone opacity, add an Options transparency slider, and let the selected-stop wheel target either that stop or its whole line through a toggle.
 - 2026-07-25T21:22:08+01:00 [USER] Fix the deployed overlay-colour regression: selecting a stop shows no zone and Options has no global-colour setting.
 - 2026-07-25T20:48:40+01:00 [USER] Implement the approved overlay-colour plan, use a colour wheel for colour selection, and make reset-all-colours a separate option from reset-all-zone-lengths.
@@ -59,6 +60,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-25T22:10:13+01:00 [CODE] Component absence now inherits a custom route colour or the first served route's native colour; an explicit false `BoardingZoneColorOverride` remains the saved global choice. Replace stacked colour actions with active two-choice selectors for scope and stop fallback.
 - 2026-07-25T21:40:07+01:00 [CODE] Separate RGB from alpha: persist global RGB only, use a native 5–60% opacity slider with 18% default, and save custom RGB in a new serializable component on either stop or route. Precedence is stop custom, explicit native/global stop source, inherited line custom, then global.
 - 2026-07-25T21:22:08+01:00 [CODE] Supersedes direct `UnityEngine.Color` persistence. Save hidden integer RGBA channels, render the visible settings button with the game's native `ColorCustomizeField`, and expose the same wheel beside selected stops using global colour.
 - 2026-07-25T20:48:40+01:00 [USER] Supersedes the 2026-07-25T20:39:29 reset assumption: the existing reset-all action affects only saved zone lengths; a second confirmed settings action removes all per-stop colour overrides without changing lengths.
@@ -311,6 +313,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-25T22:10:13+01:00 [TOOL] Default-line resolution and compact colour selectors pass policy, UI production/smoke, formatting/diff, and the official 1.6.0 Release build with 0 warnings/errors. The behaviorally complete candidate was installed and backed up from the prior package, but Cities II started before the final dead-binding/CSS cleanup could be deployed. Exact final staged DLL SHA-256 is `E67F42BA38363B13B7F3EE9B87C4331DAD4AED78EC249C551AA20A00724733D0`; MJS SHA-256 is `FA87544CC02304D73A005F6159DF0BFE5A2A1153DC03C83379B073807A0FD638`.
 - 2026-07-25T21:47:39+01:00 [TOOL] Committed the verified stop/whole-line colour and global-opacity implementation as `bbf53ab`, pushed `feature/overlay-colours`, and updated open draft PR #5 with final behavior, checks, deployed hashes, and the remaining gameplay gate. GitGuardian passes; GitHub reported mergeability `UNKNOWN` while recalculating after the handover-only push.
 - 2026-07-25T21:40:07+01:00 [TOOL] The final stop/whole-line colour and opacity package is installed and all eight staged/live hashes match. DLL is 62,464 bytes with SHA-256 `91C199FB893F5463092F9F674A6FEFD54B1459C98631F76E39D2781A38503CA7`; MJS SHA-256 is `4AEEAF245C87EEBD9520C85209D71E45A7F8E25CBE767DD8F5E34E3A74EDA8B5`. Gameplay confirmation and source/PR update remain.
 - 2026-07-25T21:25:20+01:00 [TOOL] Regression-fix commit `583163a` is pushed to `feature/overlay-colours`; draft PR #5 is updated through the GitHub connector with the root cause, primitive-RGBA/native-wheel design, test evidence, exact hashes, and outstanding gameplay confirmation.

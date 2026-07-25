@@ -102,6 +102,8 @@ if ($settings -match 'UnityColor GlobalOverlayColor' -or
     $colorOverride -notmatch 'struct BoardingZoneColorOverride : IComponentData, ISerializable' -or
     $customColor -notmatch 'struct BoardingZoneCustomColor : IComponentData, ISerializable' -or
     $zoneRenderer -notmatch 'HasComponent<BoardingZoneCustomColor>\(route\)' -or
+    $zoneRenderer -notmatch 'else if \(TryGetCustomRouteColor\(stop, global\.a, out UnityColor routeColor\)\)' -or
+    $zoneRenderer -notmatch 'if \(!TryGetFirstRoute\(stop, out Entity nativeRoute\)' -or
     $zoneRenderer -notmatch 'nativeLine\.a = global\.a') {
-    throw 'Overlay colours must use primitive settings, global opacity, saved stop/line custom colours, and separate colour reset.'
+    throw 'Overlay colours must use primitive settings, global opacity, default native line colours, saved stop/line custom colours, and separate colour reset.'
 }

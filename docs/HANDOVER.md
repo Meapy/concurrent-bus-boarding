@@ -312,3 +312,12 @@ merged, the exact package above is accepted by ModPublisher, and both GitHub and
   behavior, verification, exact deployed hashes, and remaining gameplay checks updated. GitGuardian passes; GitHub
   reported mergeability `UNKNOWN` while recalculating after the handover-only push. Do not mark it ready or merge it
   until the global wheel, opacity slider, stop/line scope, presets, persistence, and boarding behavior pass in-game.
+- Served stops now inherit a custom line colour or their first route's native colour when no stop choice is saved;
+  explicit Global and custom-stop choices still win. The panel replaces the stacked source/scope actions with compact,
+  active **This stop / Whole line** and **Global / Line colour** selectors. Policy, UI production/smoke, formatting,
+  diff, and the official 1.6.0 Release build pass with 0 warnings/errors. The behaviorally complete candidate is live,
+  but Cities II started before the final unused-binding/CSS cleanup could be copied. The exact final staged DLL is
+  62,464 bytes with SHA-256 `E67F42BA38363B13B7F3EE9B87C4331DAD4AED78EC249C551AA20A00724733D0`;
+  MJS is 5,368 bytes with SHA-256 `FA87544CC02304D73A005F6159DF0BFE5A2A1153DC03C83379B073807A0FD638`.
+  Install it after the game closes. The prior package is recoverable from
+  `artifacts/pre-default-line-ui-live-20260725/ConcurrentBusBoarding`.

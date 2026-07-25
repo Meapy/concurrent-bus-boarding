@@ -6,10 +6,8 @@ const zoneEditor$ = bindValue("ConcurrentBusBoarding", "zoneEditor", {
   visible: false,
   available: false,
   customized: false,
-  lineColor: false,
   forceGlobal: false,
   customStopColor: false,
-  customLineColor: false,
   hasLine: false,
   globalColor: { r: 0.15, g: 0.55, b: 0.95, a: 0.18 },
   stopColor: { r: 0.15, g: 0.55, b: 0.95, a: 0.18 },
@@ -142,47 +140,48 @@ export default function register(moduleRegistry) {
             }),
             React.createElement(InfoRow, {
               disableFocus: true,
-              left: "Overlay colour",
-              right: React.createElement("div", { className: styles.colorControls },
-                React.createElement(ColorCustomizeField, {
-                  value: wholeLine ? zone.routeColor : zone.stopColor,
-                  onChange: changeStopColor,
-                  className: styles.colorField
-                }))
-            }),
-            React.createElement(InfoRow, {
-              disableFocus: true,
-              left: "Current source",
-              right: zone.customStopColor ? "Custom stop" :
-                zone.lineColor ? "Native line" :
-                  zone.forceGlobal ? "Global" :
-                    zone.customLineColor ? "Custom line" : "Global"
-            }),
-            React.createElement(InfoRow, {
-              disableFocus: true,
-              left: "Apply colour to",
-              right: React.createElement(Button, {
-                theme: secondaryButtonTheme,
-                className: styles.resetButton,
-                disabled: !zone.hasLine,
-                onSelect: () => setWholeLine(!wholeLine)
-              }, wholeLine ? "Whole line" : "This stop")
-            }),
-            React.createElement(InfoRow, {
-              disableFocus: true,
-              left: "Colour preset",
-              right: React.createElement("div", { className: styles.colorControls },
+              left: "Customise",
+              right: React.createElement("div", { className: styles.choiceGroup },
                 React.createElement(Button, {
                   theme: secondaryButtonTheme,
-                  className: styles.resetButton,
+                  className: `${styles.choiceButton} ${!wholeLine ? styles.choiceButtonActive : ""}`,
+                  "aria-pressed": !wholeLine,
+                  onSelect: () => setWholeLine(false)
+                }, "This stop"),
+                React.createElement(Button, {
+                  theme: secondaryButtonTheme,
+                  className: `${styles.choiceButton} ${wholeLine ? styles.choiceButtonActive : ""}`,
+                  "aria-pressed": wholeLine,
+                  disabled: !zone.hasLine,
+                  onSelect: () => setWholeLine(true)
+                }, "Whole line"))
+            }),
+            React.createElement(InfoRow, {
+              disableFocus: true,
+              left: wholeLine ? "Line custom colour" : "Stop custom colour",
+              right: React.createElement(ColorCustomizeField, {
+                value: wholeLine ? zone.routeColor : zone.stopColor,
+                onChange: changeStopColor,
+                className: styles.colorField
+              })
+            }),
+            !wholeLine && React.createElement(InfoRow, {
+              disableFocus: true,
+              left: "Use instead",
+              right: React.createElement("div", { className: styles.choiceGroup },
+                React.createElement(Button, {
+                  theme: secondaryButtonTheme,
+                  className: `${styles.choiceButton} ${zone.forceGlobal ? styles.choiceButtonActive : ""}`,
+                  "aria-pressed": zone.forceGlobal,
                   onSelect: useGlobalColor
-                }, "Use global"),
+                }, "Global"),
                 React.createElement(Button, {
                   theme: secondaryButtonTheme,
-                  className: styles.resetButton,
+                  className: `${styles.choiceButton} ${!zone.forceGlobal && !zone.customStopColor ? styles.choiceButtonActive : ""}`,
+                  "aria-pressed": !zone.forceGlobal && !zone.customStopColor,
                   disabled: !zone.hasLine,
                   onSelect: useLineColor
-                }, "Use native line"))
+                }, "Line colour"))
             }),
             React.createElement(InfoRow, {
               disableFocus: true,

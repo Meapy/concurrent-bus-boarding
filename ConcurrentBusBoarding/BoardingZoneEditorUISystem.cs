@@ -115,20 +115,14 @@ namespace ConcurrentBusBoarding
             writer.Write(available);
             writer.PropertyName("customized");
             writer.Write(customized);
-            writer.PropertyName("lineColor");
-            writer.Write(visible && EntityManager.HasComponent<BoardingZoneColorOverride>(stop) &&
-                EntityManager.GetComponentData<BoardingZoneColorOverride>(stop).m_UseLineColor);
             writer.PropertyName("forceGlobal");
             writer.Write(visible && EntityManager.HasComponent<BoardingZoneColorOverride>(stop) &&
                 !EntityManager.GetComponentData<BoardingZoneColorOverride>(stop).m_UseLineColor);
             bool customStopColor = visible && EntityManager.HasComponent<BoardingZoneCustomColor>(stop);
             Entity route = Entity.Null;
             bool hasRoute = visible && m_RenderSystem.TryGetFirstRoute(stop, out route);
-            bool customLineColor = hasRoute && EntityManager.HasComponent<BoardingZoneCustomColor>(route);
             writer.PropertyName("customStopColor");
             writer.Write(customStopColor);
-            writer.PropertyName("customLineColor");
-            writer.Write(customLineColor);
             writer.PropertyName("hasLine");
             writer.Write(hasRoute);
             UnityColor globalColor = Mod.Settings?.GetGlobalOverlayColor() ??

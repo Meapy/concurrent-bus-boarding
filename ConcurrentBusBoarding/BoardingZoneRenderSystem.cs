@@ -130,22 +130,30 @@ namespace ConcurrentBusBoarding
 
             if (EntityManager.HasComponent<BoardingZoneColorOverride>(stop))
             {
-                if (!EntityManager.GetComponentData<BoardingZoneColorOverride>(stop).m_UseLineColor ||
-                    !TryGetFirstRoute(stop, out Entity nativeRoute) ||
-                    !EntityManager.HasComponent<Game.Routes.Color>(nativeRoute))
+                if (!EntityManager.GetComponentData<BoardingZoneColorOverride>(stop).m_UseLineColor)
                     return global;
-                UnityColor nativeLine = EntityManager.GetComponentData<Game.Routes.Color>(nativeRoute).m_Color;
-                nativeLine.a = global.a;
-                return nativeLine;
             }
+            else if (TryGetCustomRouteColor(stop, global.a, out UnityColor routeColor))
+                return routeColor;
 
-            return TryGetCustomRouteColor(stop, global.a, out UnityColor routeColor) ? routeColor : global;
+            if (!TryGetFirstRoute(stop, out Entity nativeRoute) ||
+                !EntityManager.HasComponent<Game.Routes.Color>(nativeRoute))
+                return global;
+            UnityColor nativeLine = EntityManager.GetComponentData<Game.Routes.Color>(nativeRoute).m_Color;
+            nativeLine.a = global.a;
+            return nativeLine;
         }
 
         internal UnityColor GetRouteOverlayColor(Entity route, UnityColor global)
         {
             if (EntityManager.HasComponent<BoardingZoneCustomColor>(route))
                 return EntityManager.GetComponentData<BoardingZoneCustomColor>(route).ToColor(global.a);
+            if (EntityManager.HasComponent<Game.Routes.Color>(route))
+            {
+                UnityColor nativeLine = EntityManager.GetComponentData<Game.Routes.Color>(route).m_Color;
+                nativeLine.a = global.a;
+                return nativeLine;
+            }
             return global;
         }
 

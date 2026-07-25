@@ -136,7 +136,7 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ChooseGlobalOverlayColor)),
                     "Global overlay colour" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ChooseGlobalOverlayColor)),
-                    "Choose the default boarding-zone colour. Stops using a custom or native line colour keep the global opacity." },
+                    "Choose the fallback colour for stops explicitly using global colour or without a valid line. All colours keep the global opacity." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.OverlayOpacity)),
                     "Overlay opacity" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.OverlayOpacity)),
@@ -148,7 +148,7 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZoneColors)),
                     "Reset all stop overlay colours" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZoneColors)),
-                    "Return every bus stop in the current city to the global overlay colour without changing customized zone lengths." }
+                    "Return every bus stop in the current city to its line colour without changing customized zone lengths." }
             };
         }
 
