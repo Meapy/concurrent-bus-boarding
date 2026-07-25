@@ -608,6 +608,8 @@ namespace ConcurrentBusBoarding
             uint frame = m_SimulationSystem.frameIndex;
             bool timedOut = transport.m_DepartureFrame != 0 &&
                 frame >= transport.m_DepartureFrame + 1800u;
+            if (timedOut)
+                CrashBreadcrumbs.Write($"boarding-timeout follower bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
             transport.m_MaxBoardingDistance = transport.m_MinWaitingDistance == float.MaxValue ||
                 transport.m_MinWaitingDistance == 0f || timedOut
                 ? float.MaxValue
@@ -615,7 +617,7 @@ namespace ConcurrentBusBoarding
             transport.m_MinWaitingDistance = float.MaxValue;
 
             if (!BoardingPolicy.CanFinishBoarding(frame, transport.m_DepartureFrame,
-                    transport.m_MaxBoardingDistance, ArePassengersReady(bus)) ||
+                    transport.m_MaxBoardingDistance, ArePassengersReady(bus), timedOut) ||
                 !TryAdvanceToNextWaypoint(bus))
                 return false;
 

@@ -138,9 +138,10 @@ namespace ConcurrentBusBoarding
         }
 
         internal static bool CanFinishBoarding(uint frame, uint departureFrame, float maxBoardingDistance,
-            bool passengersReady)
+            bool passengersReady, bool timedOut)
         {
-            return frame >= departureFrame && maxBoardingDistance == float.MaxValue && passengersReady;
+            return frame >= departureFrame && maxBoardingDistance == float.MaxValue &&
+                (passengersReady || timedOut);
         }
 
         internal static bool ShouldExposeBoardingToVehicleAi(bool usesNativeBoarding, bool selected)

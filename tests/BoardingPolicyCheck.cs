@@ -99,10 +99,16 @@ internal static class BoardingPolicyCheck
              frame++)
             Expect(BoardingPolicy.RotationIndex(2, BoardingPolicy.PassengerSelectionTurn(frame), 0) == 1,
                 "all second-sweep resident partitions see the following bus");
-        Expect(!BoardingPolicy.CanFinishBoarding(99, 100, float.MaxValue, true), "boarding dwell must finish");
-        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, true), "waiting passengers must finish");
-        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false), "onboard transitions must finish");
-        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, true), "completed follower can leave");
+        Expect(!BoardingPolicy.CanFinishBoarding(99, 100, float.MaxValue, true, false),
+            "boarding dwell must finish");
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, true, false),
+            "waiting passengers must finish");
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, false),
+            "onboard transitions must finish");
+        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, true, false),
+            "completed follower can leave");
+        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, true),
+            "timed-out follower can leave despite a stuck passenger transition");
         Expect(BoardingPolicy.ShouldExposeBoardingToVehicleAi(true, true),
             "selected native session remains visible to vehicle AI");
         Expect(!BoardingPolicy.ShouldExposeBoardingToVehicleAi(false, true),
