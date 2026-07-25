@@ -307,6 +307,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-25T21:25:20+01:00 [TOOL] Regression-fix commit `583163a` is pushed to `feature/overlay-colours`; draft PR #5 is updated through the GitHub connector with the root cause, primitive-RGBA/native-wheel design, test evidence, exact hashes, and outstanding gameplay confirmation.
 - 2026-07-25T21:22:08+01:00 [TOOL] Corrected local package DLL is 59,392 bytes with SHA-256 `40F6FCD89242BC79FF88586979DD4726A9AB2438CCEE30C7043D9BE1948E2C81`; MJS SHA-256 is `F3D58655171A5D31BCEFF4E0023F3C748D6DB438EB05C00CF21D2F02C6156F49`. The malformed settings file is preserved as `ConcurrentBusBoarding.coc.broken-overlay-colour-20260725`; gameplay confirmation and source push remain.
 - 2026-07-25T20:52:44+01:00 [TOOL] Branch `feature/overlay-colours` was pushed and GitHub draft PR #5 was opened at `https://github.com/Meapy/concurrent-bus-boarding/pull/5`.
 - 2026-07-25T20:50:52+01:00 [TOOL] The exact eight-file overlay-colour package was deployed while Cities II was closed; all staged/live hashes match. The previous live package is recoverable from `artifacts/pre-overlay-colours-live-20260725/ConcurrentBusBoarding`. Gameplay confirmation remains.

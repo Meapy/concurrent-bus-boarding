@@ -287,6 +287,7 @@ merged, the exact package above is accepted by ModPublisher, and both GitHub and
   zone lengths and per-stop colour-source components are unaffected.
 - Source is pushed on `feature/overlay-colours`; draft PR #5 is
   `https://github.com/Meapy/concurrent-bus-boarding/pull/5`.
-- The corrected source is not yet pushed. In-game confirmation remains for Options visibility, both colour-wheel
-  locations, selected-stop overlay visibility, global updates, line recolouring, shared stops, old/new save loading,
-  save/reload, separate resets, selected-only rendering, and map editing.
+- Corrected runtime commit `583163a` is pushed and the draft PR body records the regression, root cause, replacement
+  persistence model, exact build hashes, and remaining gameplay gate. In-game confirmation remains for Options
+  visibility, both colour-wheel locations, selected-stop overlay visibility, global updates, line recolouring, shared
+  stops, old/new save loading, save/reload, separate resets, selected-only rendering, and map editing.
