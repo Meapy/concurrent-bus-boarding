@@ -303,6 +303,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-25T20:50:52+01:00 [TOOL] The exact eight-file overlay-colour package was deployed while Cities II was closed; all staged/live hashes match. The previous live package is recoverable from `artifacts/pre-overlay-colours-live-20260725/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-25T20:48:40+01:00 [CODE] Global overlays now use a settings colour wheel; each stop can toggle between global and its first valid native route colour, with line RGB and global alpha. A separate reset-all-colours action removes only colour components. In-game colour-wheel, line recolouring, shared-stop, and save/reload confirmation remain.
 - 2026-07-23T12:31:19+01:00 [TOOL] Version 1.2.0 is locally release-ready on `feature/crash-hardening`; exact package DLL SHA-256 is `F48BCF8D...B3A50`. GitHub push/PR/merge and Paradox mod `152153` publication remain pending because remote commands did not execute.
 - 2026-07-23T11:52:34+01:00 [TOOL] Live local package now contains the 54,272-byte `F48BCF8D...B3A50` target-zone stop-request DLL and seven matching companions. Rollback: `artifacts/pre-lead-stop-live-20260723-115214/ConcurrentBusBoarding`. Gameplay confirmation remains.

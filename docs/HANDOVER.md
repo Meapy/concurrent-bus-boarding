@@ -274,5 +274,8 @@ merged, the exact package above is accepted by ModPublisher, and both GitHub and
   Release build pass. The staged eight-file package is `artifacts/overlay-colours-20260725/ConcurrentBusBoarding`;
   its 57,856-byte DLL SHA-256 is
   `01ADFB45EBB022D426BFC1FCBBEE83F8709BDD92B7E96BB3F2BBC024ACDEA725`.
+- Cities II was closed, so the exact eight staged files were copied to the live `.ConcurrentBusBoarding` package and
+  verified by SHA-256. The replaced package is recoverable from
+  `artifacts/pre-overlay-colours-live-20260725/ConcurrentBusBoarding`.
 - In-game confirmation remains for the colour wheel, global updates, line recolouring, shared stops, old/new save
   loading, save/reload, separate resets, selected-only rendering, and map editing.
