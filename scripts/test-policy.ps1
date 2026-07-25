@@ -109,7 +109,7 @@ if ($settings -match 'UnityColor GlobalOverlayColor' -or
     throw 'Overlay colours must use primitive settings, global opacity, default native line colours, saved stop/line custom colours, and separate colour reset.'
 }
 if ($settings -notmatch 'SettingsUISlider\(min = 50f, max = 200f, step = 5f, unit = "%"\)' -or
-    $settings -notmatch 'public int PublicTransportAttractiveness' -or
+    $settings -notmatch 'public int PublicTransportAttractiveness \{ get; set; \} = 100;' -or
     $transitAttractiveness -notmatch 'line\.m_PassengerTransport' -or
     $transitAttractiveness -notmatch 'line\.m_PathfindPrefab' -or
     $transitAttractiveness -notmatch 'adjusted\.m_StartingCost\.m_Value' -or

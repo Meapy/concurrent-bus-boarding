@@ -24,7 +24,7 @@ namespace ConcurrentBusBoarding
 
         [SettingsUISection(MainSection, TransportGroup)]
         [SettingsUISlider(min = 50f, max = 200f, step = 5f, unit = "%")]
-        public int PublicTransportAttractiveness { get; set; }
+        public int PublicTransportAttractiveness { get; set; } = 100;
 
         [SettingsUISection(MainSection, DisplayGroup)]
         public bool OnlyShowSelectedStop { get; set; }
