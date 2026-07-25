@@ -5,6 +5,8 @@
 - Add a colour wheel for the global boarding-zone overlay colour.
 - Let individual bus stops use their first served line's colour while retaining global transparency.
 - Add a separate confirmed action that resets all per-stop colour choices without changing customized zone lengths.
+- Persist the global colour as primitive RGBA channels so the Options page saves reliably and existing settings cannot make overlays transparent.
+- Show the native game colour wheel both in Options and beside a selected stop's Global/Line colour choice.
 
 ## 1.2.0 - 2026-07-23
 

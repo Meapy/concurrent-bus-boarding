@@ -8,6 +8,7 @@ using Game.UI.InGame;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine.Scripting;
+using UnityColor = UnityEngine.Color;
 
 namespace ConcurrentBusBoarding
 {
@@ -49,6 +50,8 @@ namespace ConcurrentBusBoarding
                 ValueReaders.Create<float>(), ValueReaders.Create<float>()));
             AddBinding(new TriggerBinding<bool>(BindingGroup, "setLineColor", SetLineColor,
                 ValueReaders.Create<bool>()));
+            AddBinding(new TriggerBinding<string>(BindingGroup, "setGlobalOverlayColor", SetGlobalOverlayColor,
+                ValueReaders.Create<string>()));
             AddBinding(new TriggerBinding(BindingGroup, "resetZone", ResetZone));
             AddBinding(new TriggerBinding(BindingGroup, "toggleZoneEditing", ToggleZoneEditing));
         }
@@ -107,6 +110,19 @@ namespace ConcurrentBusBoarding
             writer.PropertyName("lineColor");
             writer.Write(visible && EntityManager.HasComponent<BoardingZoneColorOverride>(stop) &&
                 EntityManager.GetComponentData<BoardingZoneColorOverride>(stop).m_UseLineColor);
+            UnityColor globalColor = Mod.Settings?.GetGlobalOverlayColor() ??
+                new UnityColor(0.15f, 0.55f, 0.95f, 0.28f);
+            writer.PropertyName("globalColor");
+            writer.TypeBegin("ConcurrentBusBoarding.Color");
+            writer.PropertyName("r");
+            writer.Write(globalColor.r);
+            writer.PropertyName("g");
+            writer.Write(globalColor.g);
+            writer.PropertyName("b");
+            writer.Write(globalColor.b);
+            writer.PropertyName("a");
+            writer.Write(globalColor.a);
+            writer.TypeEnd();
             writer.PropertyName("editing");
             writer.Write(visible && m_ZoneTool.EditingStop == stop);
             writer.PropertyName("offset");
@@ -156,6 +172,12 @@ namespace ConcurrentBusBoarding
                 EntityManager.RemoveComponent<BoardingZoneColorOverride>(stop);
             }
             Refresh();
+        }
+
+        private void SetGlobalOverlayColor(string rgba)
+        {
+            if (Mod.Settings != null && Mod.Settings.SetGlobalOverlayColor(rgba))
+                Refresh();
         }
 
         internal static void RequestResetAllZones() => s_ResetAllRequested = true;

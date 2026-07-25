@@ -261,8 +261,14 @@ merged, the exact package above is accepted by ModPublisher, and both GitHub and
 
 ### Overlay colour customization (2026-07-25)
 
-- `GlobalOverlayColor` uses the game's native `UnityEngine.Color` settings field, giving the Options page a colour
-  wheel. Its default is the previous ordinary-zone blue with 0.28 alpha.
+- The first deployed candidate failed in game. `Player.log` recorded
+  `TargetParameterCountException` in `Colossal.Json.DiffUtility.DiffObject`: settings reflection traversed
+  `UnityEngine.Color.Item` without its required index parameter. The unsupported property was also omitted from
+  Options, and the new value loaded as transparent black, hiding selected-stop overlays.
+- The corrected settings model persists four hidden integer RGBA channels. A visible
+  `ChooseGlobalOverlayColor` settings button is replaced in the frontend with the installed game's native
+  `ColorCustomizeField`, which opens its radial colour wheel. The same wheel is shown in the selected-stop panel when
+  that stop uses the global colour. An all-zero missing value safely falls back to the previous blue at 0.28 alpha.
 - `BoardingZoneColorOverride` is a separate serializable per-stop component, preserving the released
   `BoardingZoneOverride` layout. Component absence means global colour.
 - **Use line colour** resolves `ConnectedRoute.m_Waypoint -> Owner.m_Owner -> Game.Routes.Color`. It uses the first
@@ -270,14 +276,17 @@ merged, the exact package above is accepted by ModPublisher, and both GitHub and
   falls back to global when no valid route colour exists.
 - **Use global colour** removes only that stop's colour component. The existing confirmed reset still removes only
   customized lengths; the new confirmed **Reset all stop overlay colours** action removes only colour overrides.
-- Policy checks, UI production bundling/smoke testing, `git diff --check`, whitespace formatting, and the official
-  Release build pass. The staged eight-file package is `artifacts/overlay-colours-20260725/ConcurrentBusBoarding`;
-  its 57,856-byte DLL SHA-256 is
-  `01ADFB45EBB022D426BFC1FCBBEE83F8709BDD92B7E96BB3F2BBC024ACDEA725`.
-- Cities II was closed, so the exact eight staged files were copied to the live `.ConcurrentBusBoarding` package and
-  verified by SHA-256. The replaced package is recoverable from
-  `artifacts/pre-overlay-colours-live-20260725/ConcurrentBusBoarding`.
+- Policy checks, UI production bundling/smoke testing, `git diff --check`, and the official 1.6.0 Release build pass
+  with 0 warnings and 0 errors. The corrected live eight-file package was deployed by the official toolchain while
+  Cities II was closed; its 59,392-byte DLL SHA-256 is
+  `40F6FCD89242BC79FF88586979DD4726A9AB2438CCEE30C7043D9BE1948E2C81` and its MJS SHA-256 is
+  `F3D58655171A5D31BCEFF4E0023F3C748D6DB438EB05C00CF21D2F02C6156F49`.
+- The malformed local settings file was moved, not deleted, to
+  `ConcurrentBusBoarding.coc.broken-overlay-colour-20260725`. It contained the incorrect root type
+  `ConcurrentBusBoarding.Color`; the corrected build will regenerate settings defaults on next launch. City-saved
+  zone lengths and per-stop colour-source components are unaffected.
 - Source is pushed on `feature/overlay-colours`; draft PR #5 is
   `https://github.com/Meapy/concurrent-bus-boarding/pull/5`.
-- In-game confirmation remains for the colour wheel, global updates, line recolouring, shared stops, old/new save
-  loading, save/reload, separate resets, selected-only rendering, and map editing.
+- The corrected source is not yet pushed. In-game confirmation remains for Options visibility, both colour-wheel
+  locations, selected-stop overlay visibility, global updates, line recolouring, shared stops, old/new save loading,
+  save/reload, separate resets, selected-only rendering, and map editing.

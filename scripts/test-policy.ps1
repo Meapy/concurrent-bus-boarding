@@ -88,11 +88,14 @@ if ($settings -notmatch '\[SettingsUIButton\][\s\S]*?\[SettingsUIConfirmation' -
     $zoneEditor -notmatch 'RemoveComponent<BoardingZoneOverride>\(m_ZoneOverrides\)') {
     throw 'The confirmed global reset must remove every live per-stop zone override through the UI system.'
 }
-if ($settings -notmatch 'UnityColor GlobalOverlayColor' -or
+if ($settings -match 'UnityColor GlobalOverlayColor' -or
+    $settings -notmatch '\[SettingsUIHidden\][\s\S]*?GlobalOverlayRed' -or
+    $settings -notmatch 'SetGlobalOverlayColor\(string rgba\)' -or
+    $zoneEditor -notmatch 'TriggerBinding<string>\(BindingGroup, "setGlobalOverlayColor"' -or
     $settings -notmatch 'RequestResetAllZoneColors\(\)' -or
     $zoneEditor -notmatch 'RemoveComponent<BoardingZoneColorOverride>\(m_ColorOverrides\)' -or
     $colorOverride -notmatch 'struct BoardingZoneColorOverride : IComponentData, ISerializable' -or
     $zoneRenderer -notmatch 'HasComponent<Game\.Routes\.Color>\(route\)' -or
     $zoneRenderer -notmatch 'line\.a = global\.a') {
-    throw 'Overlay colours must use the native global colour field, saved per-stop line mode, and separate colour reset.'
+    throw 'Overlay colours must use primitive persisted RGBA channels, saved per-stop line mode, and separate colour reset.'
 }

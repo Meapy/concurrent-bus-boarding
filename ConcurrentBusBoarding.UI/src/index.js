@@ -7,6 +7,7 @@ const zoneEditor$ = bindValue("ConcurrentBusBoarding", "zoneEditor", {
   available: false,
   customized: false,
   lineColor: false,
+  globalColor: { r: 0.15, g: 0.55, b: 0.95, a: 0.28 },
   editing: false,
   offset: 0,
   length: 26
@@ -18,7 +19,17 @@ const infoSectionModule = "game-ui/game/components/selected-info-panel/shared-co
 const infoRowModule = "game-ui/game/components/selected-info-panel/shared-components/info-row/info-row.tsx";
 const buttonModule = "game-ui/common/input/button/button.tsx";
 const secondaryButtonThemeModule = "game-ui/common/input/button/themes/paradox-secondary-button.module.scss";
+const colorFieldModule = "game-ui/common/input/color-picker/color-field/color-field.tsx";
+const optionFieldModule = "game-ui/menu/widgets/field/field.tsx";
+const optionWidgetRendererModule = "game-ui/menu/widgets/option-widget-renderer.tsx";
+const widgetBindingsModule = "game-ui/widgets/data-binding/widget-bindings.ts";
 const editorMarker = Symbol.for("ConcurrentBusBoarding.ZoneEditor");
+const settingsMarker = Symbol.for("ConcurrentBusBoarding.GlobalColorSetting");
+
+const toRgbaHex = (color) => ["r", "g", "b", "a"]
+  .map((channel) => Math.round(Math.max(0, Math.min(1, color[channel])) * 255)
+    .toString(16).padStart(2, "0"))
+  .join("");
 
 export default function register(moduleRegistry) {
   console.log("[Concurrent Bus Boarding] UI module registered.");
@@ -28,6 +39,38 @@ export default function register(moduleRegistry) {
   const InfoRow = moduleRegistry.get(infoRowModule, "InfoRow");
   const Button = moduleRegistry.get(buttonModule, "Button");
   const secondaryButtonTheme = moduleRegistry.get(secondaryButtonThemeModule, "classes");
+  const ColorCustomizeField = moduleRegistry.get(colorFieldModule, "ColorCustomizeField");
+  const OptionField = moduleRegistry.get(optionFieldModule, "OptionField");
+  const WidgetType = moduleRegistry.get(widgetBindingsModule, "WidgetType");
+
+  const GlobalColorSetting = (props) => {
+    const zone = useValue(zoneEditor$);
+    const changeColor = (color) =>
+      trigger("ConcurrentBusBoarding", "setGlobalOverlayColor", toRgbaHex(color));
+    return React.createElement(OptionField, {
+      id: props.path,
+      label: "Global overlay colour",
+      warning: props.props.warning,
+      disabled: props.props.disabled
+    }, React.createElement(ColorCustomizeField, {
+      value: zone.globalColor,
+      onChange: changeColor,
+      className: styles.colorField
+    }));
+  };
+
+  moduleRegistry.extend(optionWidgetRendererModule, "optionsWidgetComponents", (components) => {
+    const OriginalButton = components[WidgetType.Button];
+    if (!OriginalButton || OriginalButton[settingsMarker])
+      return components;
+    const ButtonWithGlobalColor = (props) =>
+      String(props.path).endsWith("ChooseGlobalOverlayColor")
+        ? React.createElement(GlobalColorSetting, props)
+        : React.createElement(OriginalButton, props);
+    ButtonWithGlobalColor[settingsMarker] = true;
+    components[WidgetType.Button] = ButtonWithGlobalColor;
+    return components;
+  });
 
   const withZoneEditor = (OriginalLinesSection) => {
     if (OriginalLinesSection[editorMarker])
@@ -47,6 +90,8 @@ export default function register(moduleRegistry) {
       };
       const reset = () => trigger("ConcurrentBusBoarding", "resetZone");
       const toggleLineColor = () => trigger("ConcurrentBusBoarding", "setLineColor", !zone.lineColor);
+      const changeGlobalColor = (color) =>
+        trigger("ConcurrentBusBoarding", "setGlobalOverlayColor", toRgbaHex(color));
       const toggleEditing = () => trigger("ConcurrentBusBoarding", "toggleZoneEditing");
 
       return React.createElement(
@@ -90,11 +135,17 @@ export default function register(moduleRegistry) {
             React.createElement(InfoRow, {
               disableFocus: true,
               left: "Overlay colour",
-              right: React.createElement(Button, {
-                theme: secondaryButtonTheme,
-                className: styles.resetButton,
-                onSelect: toggleLineColor
-              }, zone.lineColor ? "Use global colour" : "Use line colour")
+              right: React.createElement("div", { className: styles.colorControls },
+                !zone.lineColor && React.createElement(ColorCustomizeField, {
+                  value: zone.globalColor,
+                  onChange: changeGlobalColor,
+                  className: styles.colorField
+                }),
+                React.createElement(Button, {
+                  theme: secondaryButtonTheme,
+                  className: styles.resetButton,
+                  onSelect: toggleLineColor
+                }, zone.lineColor ? "Use global colour" : "Use line colour"))
             }),
             React.createElement(InfoRow, {
               disableFocus: true,

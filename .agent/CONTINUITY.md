@@ -1,4 +1,5 @@
 [PLANS]
+- 2026-07-25T21:22:08+01:00 [USER] Fix the deployed overlay-colour regression: selecting a stop shows no zone and Options has no global-colour setting.
 - 2026-07-25T20:48:40+01:00 [USER] Implement the approved overlay-colour plan, use a colour wheel for colour selection, and make reset-all-colours a separate option from reset-all-zone-lengths.
 - 2026-07-25T20:39:29+01:00 [USER] Plan, but do not yet implement, customizable boarding-zone overlay colours: a global overlay colour is the default and each bus stop can opt into its served line colour.
 - 2026-07-23T12:31:19+01:00 [USER] Push and merge `feature/crash-hardening`, publish its changelog, and upload the complete release to Paradox Mods.
@@ -57,6 +58,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-25T21:22:08+01:00 [CODE] Supersedes direct `UnityEngine.Color` persistence. Save hidden integer RGBA channels, render the visible settings button with the game's native `ColorCustomizeField`, and expose the same wheel beside selected stops using global colour.
 - 2026-07-25T20:48:40+01:00 [USER] Supersedes the 2026-07-25T20:39:29 reset assumption: the existing reset-all action affects only saved zone lengths; a second confirmed settings action removes all per-stop colour overrides without changing lengths.
 - 2026-07-25T20:48:40+01:00 [CODE] Use the native settings widget for a `UnityEngine.Color` property as the global colour wheel. Component absence means global colour; `BoardingZoneColorOverride` saves per-stop line-colour mode without changing the released `BoardingZoneOverride` layout.
 - 2026-07-25T20:39:29+01:00 [ASSUMPTION] Proposed design pending user approval: save global RGBA in `ConcurrentBusBoardingSettings`; represent per-stop line-colour selection with a separate serializable component whose absence means global default, preserving the released `BoardingZoneOverride` layout. Resolve line RGB through `ConnectedRoute.m_Waypoint -> Owner.m_Owner -> Game.Routes.Color`, retain global alpha, and use the first line in the native connected-route/Lines list for multi-line stops.
@@ -150,6 +152,7 @@
 - 2026-07-21T12:01:34+01:00 [CODE] Restore the route end lane's secondary marker as a precise pull-in fallback while leaving broad route-transition and merge/intersection signals disabled; raise the stopped/settling cutoff from 0.5 to 1.0 m/s.
 
 [PROGRESS]
+- 2026-07-25T21:22:08+01:00 [TOOL] Corrected UI smoke and policy checks pass; the official CS2 1.6.0 Release build succeeds with 0 warnings/errors and deploys the exact eight-file package while Cities II is closed.
 - 2026-07-25T20:48:40+01:00 [TOOL] Overlay colour policy checks, UI production bundle/smoke test, diff/whitespace checks, and the official CS2 Release build pass. The staged eight-file package is under `artifacts/overlay-colours-20260725/ConcurrentBusBoarding`.
 - 2026-07-23T12:31:19+01:00 [TOOL] Prepared and committed version 1.2.0 changelog/Paradox metadata as `1055d5b`; policy, UI smoke, XML, whitespace, diff, package-content, and hash checks pass. Paradox `NewVersion` and `git push` were rejected before execution by the service usage limit, so no remote state changed.
 - 2026-07-23T11:52:34+01:00 [TOOL] Target-zone stop requesting passes policy, UI smoke, whitespace/diff, and official 1.6.0 Release checks with 0 warnings/errors. With Cities II closed, backed up and replaced all eight live package files; staged/live hashes match.
@@ -240,6 +243,7 @@
 - 2026-07-21T12:05:23+01:00 [TOOL] Committed the full pull-in lane and settling-threshold correction as `a9e66b6`, pushed `feature/concurrent-boarding`, and refreshed draft PR #1 with the Butler Street evidence and current verification.
 
 [DISCOVERIES]
+- 2026-07-25T21:22:08+01:00 [TOOL] `Player.log` proves `UnityEngine.Color` is unsafe in `ModSetting`: `DiffUtility` reflects its indexed `Item` member without an argument, causing `TargetParameterCountException`; the resulting `.coc` root became `ConcurrentBusBoarding.Color`, the Options row disappeared, and zero alpha hid overlays.
 - 2026-07-23T11:52:34+01:00 [TOOL] Installed 1.6.0 vehicle AI advances a reached route waypoint when boarding does not start, while resident boarding independently sets `PublicTransportFlags.RequireStop`. A first bus can therefore pass waiting passengers if vehicle AI reaches the waypoint before a resident partition requests the stop.
 - 2026-07-23T11:29:05+01:00 [CODE] No CBB exception appears in the current Player/UI logs. The regression was logical: a first stopped bus could be synthetically admitted before vanilla AI began boarding, then crash hardening removed its unpaired `Boarding` flag before vehicle AI and allowed it to continue.
 - 2026-07-23T11:09:51+01:00 [TOOL] Installed 1.6.0 `ResidentAISystem.OnUpdate` filters residents by `frameIndex % 16`. `RouteUtils.GetBoardingVehicle` offers one stop vehicle, and `BoardingJob.TryFindVehicle` returns null on insufficient capacity without trying another active bus. Per-frame pointer rotation could therefore phase-lock a resident to the same full lead bus.
@@ -303,6 +307,7 @@
 - 2026-07-21T12:01:34+01:00 [USER] Visual evidence establishes the Butler Street lane is a pull-in bay even though its resolved physical navigation lane did not expose the secondary marker; its route end lane is the required metadata fallback.
 
 [OUTCOMES]
+- 2026-07-25T21:22:08+01:00 [TOOL] Corrected local package DLL is 59,392 bytes with SHA-256 `40F6FCD89242BC79FF88586979DD4726A9AB2438CCEE30C7043D9BE1948E2C81`; MJS SHA-256 is `F3D58655171A5D31BCEFF4E0023F3C748D6DB438EB05C00CF21D2F02C6156F49`. The malformed settings file is preserved as `ConcurrentBusBoarding.coc.broken-overlay-colour-20260725`; gameplay confirmation and source push remain.
 - 2026-07-25T20:52:44+01:00 [TOOL] Branch `feature/overlay-colours` was pushed and GitHub draft PR #5 was opened at `https://github.com/Meapy/concurrent-bus-boarding/pull/5`.
 - 2026-07-25T20:50:52+01:00 [TOOL] The exact eight-file overlay-colour package was deployed while Cities II was closed; all staged/live hashes match. The previous live package is recoverable from `artifacts/pre-overlay-colours-live-20260725/ConcurrentBusBoarding`. Gameplay confirmation remains.
 - 2026-07-25T20:48:40+01:00 [CODE] Global overlays now use a settings colour wheel; each stop can toggle between global and its first valid native route colour, with line RGB and global alpha. A separate reset-all-colours action removes only colour components. In-game colour-wheel, line recolouring, shared-stop, and save/reload confirmation remain.

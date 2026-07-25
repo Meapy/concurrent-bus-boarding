@@ -117,7 +117,7 @@ namespace ConcurrentBusBoarding
 
         private UnityColor GetOverlayColor(Entity stop)
         {
-            UnityColor global = Mod.Settings?.GlobalOverlayColor ?? DefaultOverlayColor;
+            UnityColor global = Mod.Settings?.GetGlobalOverlayColor() ?? DefaultOverlayColor;
             if (!math.all(math.isfinite(new float4(global.r, global.g, global.b, global.a))))
                 global = DefaultOverlayColor;
             global.r = math.saturate(global.r);
