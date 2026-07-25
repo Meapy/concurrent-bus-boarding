@@ -18,6 +18,7 @@ $zoneEditor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneEditorUI
 $zoneRenderer = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneRenderSystem.cs"
 $colorOverride = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneColorOverride.cs"
 $customColor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneCustomColor.cs"
+$transitAttractiveness = Get-Content -Raw "$root\ConcurrentBusBoarding\PublicTransportAttractivenessSystem.cs"
 $project = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoarding.csproj"
 $breadcrumbs = Get-Content -Raw "$root\ConcurrentBusBoarding\CrashBreadcrumbs.cs"
 if ($boardingSystems -notmatch 'm_DepartureFrame = math\.max' -or
@@ -106,4 +107,13 @@ if ($settings -match 'UnityColor GlobalOverlayColor' -or
     $zoneRenderer -notmatch 'if \(!TryGetFirstRoute\(stop, out Entity nativeRoute\)' -or
     $zoneRenderer -notmatch 'nativeLine\.a = global\.a') {
     throw 'Overlay colours must use primitive settings, global opacity, default native line colours, saved stop/line custom colours, and separate colour reset.'
+}
+if ($settings -notmatch 'SettingsUISlider\(min = 50f, max = 200f, step = 5f, unit = "%"\)' -or
+    $settings -notmatch 'public int PublicTransportAttractiveness \{ get; set; \} = 100;' -or
+    $transitAttractiveness -notmatch 'line\.m_PassengerTransport' -or
+    $transitAttractiveness -notmatch 'line\.m_PathfindPrefab' -or
+    $transitAttractiveness -notmatch 'adjusted\.m_StartingCost\.m_Value' -or
+    $transitAttractiveness -notmatch 'AddComponent<PathfindUpdated>\(m_RouteElements\)' -or
+    $transitAttractiveness -match 'Game\.Citizens|TripNeeded|PublicTransportFlags') {
+    throw 'Public transport attractiveness must adjust only native passenger-line starting costs and refresh route edges.'
 }

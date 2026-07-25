@@ -2,6 +2,7 @@ using Colossal.IO.AssetDatabase;
 using Colossal.Logging;
 using Game;
 using Game.Modding;
+using Game.Pathfind;
 using Game.SceneFlow;
 using Game.Simulation;
 using Game.Tools;
@@ -30,6 +31,8 @@ namespace ConcurrentBusBoarding
             AssetDatabase.global.LoadSettings("ConcurrentBusBoarding", Settings,
                 new ConcurrentBusBoardingSettings(this));
             CrashBreadcrumbs.Write("mod-onload after-settings");
+            updateSystem.UpdateBefore<PublicTransportAttractivenessSystem, RoutesModifiedSystem>(
+                SystemUpdatePhase.Modification5);
             // ponytail: no approach/front-position or passenger-spread system; native traffic owns movement.
             updateSystem.UpdateBefore<ConcurrentBoardingSystem, TransportCarAISystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAfter<RouteHandoffSystem, TransportCarAISystem>(SystemUpdatePhase.GameSimulation);

@@ -17,6 +17,7 @@ FEATURES
 - Options provides a global fallback colour and opacity control shared by every overlay colour source.
 - Options includes a confirmed action that resets every customized zone in the current city.
 - Boarding-zone overlays show only for the selected stop by default; this can be changed in Options.
+- Options includes a 50-200% public transport attractiveness slider. The 100% default preserves vanilla passenger-route costs; higher values make passenger public transport more attractive.
 
 HOW TO EDIT A STOP
 
@@ -24,7 +25,7 @@ Select a served bus stop and open Bus Boarding Zone. Use Length for precise adju
 
 SCOPE AND COMPATIBILITY
 
-Only passenger buses are changed. Other public transport and cargo vehicles keep their normal behaviour. This is a code mod that integrates with the game's vehicle and passenger ECS systems; it may require an update after a major game patch.
+Boarding behavior changes only passenger buses. The optional attractiveness setting applies to every passenger public transport type; cargo transport keeps its normal route costs. This is a code mod that integrates with the game's vehicle, passenger, and pathfinding ECS systems; it may require an update after a major game patch.
 	</LongDescription>
 	<Thumbnail Value="Properties/Thumbnail.png" />
 	<Screenshot Value="Properties/Screenshots/concurrent-boarding.jpg" />
@@ -33,9 +34,9 @@ Only passenger buses are changed. Other public transport and cargo vehicles keep
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.3.0" />
+	<ModVersion Value="1.4.0" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Adds customizable boarding-zone colours and opacity. Served stops use their line colour by default; colour wheels can customize one stop or its whole line, while Options provides a global fallback colour and a 5–60% opacity slider. The selected-stop panel now uses compact scope and source selectors, and a separate confirmed action resets colour choices without changing zone lengths." />
+	<ChangeLog Value="Adds a 50–200% public transport attractiveness slider. The 100% default preserves vanilla passenger-route costs; higher values make every passenger public transport type more attractive when residents choose routes. Existing settings files also initialize the new slider at 100% instead of showing 0." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />

@@ -164,6 +164,11 @@ namespace ConcurrentBusBoarding
             return validRoute && validTarget && !retiring;
         }
 
+        internal static float TransitCostMultiplier(int attractiveness)
+        {
+            return attractiveness < 50 || attractiveness > 200 ? 1f : 100f / attractiveness;
+        }
+
         private static float Clamp(float value, float min, float max)
         {
             return value < min ? min : value > max ? max : value;
