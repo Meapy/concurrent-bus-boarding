@@ -1,4 +1,5 @@
 [PLANS]
+- 2026-07-25T20:39:29+01:00 [USER] Plan, but do not yet implement, customizable boarding-zone overlay colours: a global overlay colour is the default and each bus stop can opt into its served line colour.
 - 2026-07-23T12:31:19+01:00 [USER] Push and merge `feature/crash-hardening`, publish its changelog, and upload the complete release to Paradox Mods.
 - 2026-07-23T11:29:05+01:00 [USER] Fix empty buses driving past stops without entering boarding after the rear-bus retry deployment.
 - 2026-07-23T11:09:51+01:00 [USER] Harden passenger distribution so a following bus actually gets boarding attempts when the lead bus is full.
@@ -55,6 +56,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-25T20:39:29+01:00 [ASSUMPTION] Proposed design pending user approval: save global RGBA in `ConcurrentBusBoardingSettings`; represent per-stop line-colour selection with a separate serializable component whose absence means global default, preserving the released `BoardingZoneOverride` layout. Resolve line RGB through `ConnectedRoute.m_Waypoint -> Owner.m_Owner -> Game.Routes.Color`, retain global alpha, and use the first line in the native connected-route/Lines list for multi-line stops.
 - 2026-07-23T12:31:19+01:00 [ASSUMPTION] Release the complete branch as version 1.2.0. Use the already verified official-toolchain package from runtime commit `99d82e6` because release metadata does not affect binaries and a duplicate elevated build was rejected before execution by the service usage limit.
 - 2026-07-23T11:52:34+01:00 [CODE] Set the native `RequireStop` bit on any unmanaged bus already inside an admissible target-stop zone. Preserve native braking, navigation, waypoint selection, and first-bus boarding; synthetic boarding remains follower-only.
 - 2026-07-23T11:29:05+01:00 [CODE] Reserve synthetic admission for actual followers by requiring an already-active boarding bus. Let the first bus at an idle stop enter through the native paired lifecycle, then adopt it.
