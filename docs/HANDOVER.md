@@ -308,7 +308,7 @@ merged, the exact package above is accepted by ModPublisher, and both GitHub and
   `artifacts/pre-overlay-colour-scope-live-20260725/ConcurrentBusBoarding`. The rewritten mixed-root settings file is
   recoverable as `ConcurrentBusBoarding.coc.pre-opacity-scope-20260725`; next launch will generate clean defaults.
   Gameplay confirmation remains required before merging.
-- Implementation commit `bbf53ab` is pushed to `feature/overlay-colours`. Draft PR #5 is open and mergeable with its
-  title, behavior, verification, exact deployed hashes, and remaining gameplay checks updated. Do not mark it ready
-  or merge it until the global wheel, opacity slider, stop/line scope, presets, persistence, and boarding behavior
-  pass in-game.
+- Implementation commit `bbf53ab` is pushed to `feature/overlay-colours`. Draft PR #5 is open with its title,
+  behavior, verification, exact deployed hashes, and remaining gameplay checks updated. GitGuardian passes; GitHub
+  reported mergeability `UNKNOWN` while recalculating after the handover-only push. Do not mark it ready or merge it
+  until the global wheel, opacity slider, stop/line scope, presets, persistence, and boarding behavior pass in-game.
