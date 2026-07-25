@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 - 2026-07-25
 
 - Add a colour wheel for the global boarding-zone overlay colour.
 - Use each served bus stop's first line colour by default while retaining global transparency.

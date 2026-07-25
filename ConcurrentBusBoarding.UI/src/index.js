@@ -141,20 +141,18 @@ export default function register(moduleRegistry) {
             React.createElement(InfoRow, {
               disableFocus: true,
               left: "Customise",
-              right: React.createElement("div", { className: styles.choiceGroup },
-                React.createElement(Button, {
-                  theme: secondaryButtonTheme,
-                  className: `${styles.choiceButton} ${!wholeLine ? styles.choiceButtonActive : ""}`,
-                  "aria-pressed": !wholeLine,
-                  onSelect: () => setWholeLine(false)
-                }, "This stop"),
-                React.createElement(Button, {
-                  theme: secondaryButtonTheme,
-                  className: `${styles.choiceButton} ${wholeLine ? styles.choiceButtonActive : ""}`,
-                  "aria-pressed": wholeLine,
-                  disabled: !zone.hasLine,
-                  onSelect: () => setWholeLine(true)
-                }, "Whole line"))
+              right: React.createElement(Button, {
+                theme: secondaryButtonTheme,
+                className: styles.segmentedButton,
+                disabled: !zone.hasLine,
+                onSelect: () => setWholeLine(!wholeLine)
+              },
+              React.createElement("span", {
+                className: `${styles.segment} ${!wholeLine ? styles.segmentActive : ""}`
+              }, "This stop"),
+              React.createElement("span", {
+                className: `${styles.segment} ${wholeLine ? styles.segmentActive : ""}`
+              }, "Whole line"))
             }),
             React.createElement(InfoRow, {
               disableFocus: true,
@@ -167,21 +165,19 @@ export default function register(moduleRegistry) {
             }),
             !wholeLine && React.createElement(InfoRow, {
               disableFocus: true,
-              left: "Use instead",
-              right: React.createElement("div", { className: styles.choiceGroup },
-                React.createElement(Button, {
-                  theme: secondaryButtonTheme,
-                  className: `${styles.choiceButton} ${zone.forceGlobal ? styles.choiceButtonActive : ""}`,
-                  "aria-pressed": zone.forceGlobal,
-                  onSelect: useGlobalColor
-                }, "Global"),
-                React.createElement(Button, {
-                  theme: secondaryButtonTheme,
-                  className: `${styles.choiceButton} ${!zone.forceGlobal && !zone.customStopColor ? styles.choiceButtonActive : ""}`,
-                  "aria-pressed": !zone.forceGlobal && !zone.customStopColor,
-                  disabled: !zone.hasLine,
-                  onSelect: useLineColor
-                }, "Line colour"))
+              left: "Colour source",
+              right: React.createElement(Button, {
+                theme: secondaryButtonTheme,
+                className: styles.segmentedButton,
+                disabled: !zone.hasLine,
+                onSelect: zone.forceGlobal ? useLineColor : useGlobalColor
+              },
+              React.createElement("span", {
+                className: `${styles.segment} ${zone.forceGlobal ? styles.segmentActive : ""}`
+              }, "Global"),
+              React.createElement("span", {
+                className: `${styles.segment} ${!zone.forceGlobal && !zone.customStopColor ? styles.segmentActive : ""}`
+              }, "Line colour"))
             }),
             React.createElement(InfoRow, {
               disableFocus: true,
