@@ -54,4 +54,6 @@ powershell -ExecutionPolicy Bypass -File scripts/test-policy.ps1
 
 This mod integrates with internal ECS components from `Game.dll`. A game update can change those internals, so a Release build and an in-game bus-bay test should be repeated after each game update.
 
+All Aboard 0.1.13 is supported. Concurrent Bus Boarding binds to All Aboard's replacement bus AI after mod loading completes and applies its configured maximum bus dwell time to managed follower buses.
+
 Implementation and gameplay-calibration details are recorded in [docs/HANDOVER.md](docs/HANDOVER.md).
