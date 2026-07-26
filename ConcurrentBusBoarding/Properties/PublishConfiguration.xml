@@ -34,9 +34,9 @@ Boarding behavior changes only passenger buses. The optional attractiveness sett
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.4.1" />
+	<ModVersion Value="1.4.2" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Adds compatibility with All Aboard 0.1.13, including late mod-load detection and the configured maximum bus dwell time for managed follower buses. Followers can now leave after that dwell limit when a stale passenger-ready flag would otherwise keep them stuck in Boarding." />
+	<ChangeLog Value="Fixes the public transport attractiveness slider so it waits for native passenger pathfind data during simulation, applies the saved value reliably, refreshes route costs, and reports its active cost profiles in the mod log." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />
