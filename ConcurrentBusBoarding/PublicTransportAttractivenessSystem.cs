@@ -14,6 +14,7 @@ namespace ConcurrentBusBoarding
     internal sealed partial class PublicTransportAttractivenessSystem : GameSystemBase
     {
         private readonly Dictionary<Entity, PathfindTransportData> m_OriginalCosts = new();
+        private readonly HashSet<Entity> m_BusPathfindPrefabs = new();
         private EntityQuery m_LinePrefabs;
         private EntityQuery m_RouteElements;
         private int m_AppliedAttractiveness;
@@ -67,7 +68,7 @@ namespace ConcurrentBusBoarding
                 return;
             }
 
-            if (!m_Initialized && attractiveness == 100)
+            if (!m_Initialized && attractiveness == 100 && m_BusPathfindPrefabs.Count == 0)
             {
                 m_Initialized = true;
                 m_AppliedAttractiveness = attractiveness;
@@ -80,7 +81,8 @@ namespace ConcurrentBusBoarding
 
         protected override void OnDestroy()
         {
-            if (m_Initialized && m_AppliedAttractiveness != 100)
+            if (m_Initialized &&
+                (m_AppliedAttractiveness != 100 || m_BusPathfindPrefabs.Count != 0))
             {
                 foreach (KeyValuePair<Entity, PathfindTransportData> entry in m_OriginalCosts)
                 {
@@ -91,6 +93,7 @@ namespace ConcurrentBusBoarding
                 RefreshRoutes();
             }
             m_OriginalCosts.Clear();
+            m_BusPathfindPrefabs.Clear();
             base.OnDestroy();
         }
 
@@ -102,9 +105,13 @@ namespace ConcurrentBusBoarding
                 TransportLineData line = EntityManager.GetComponentData<TransportLineData>(linePrefab);
                 Entity pathfindPrefab = line.m_PathfindPrefab;
                 if (!line.m_PassengerTransport || pathfindPrefab == Entity.Null ||
-                    m_OriginalCosts.ContainsKey(pathfindPrefab) ||
                     !EntityManager.Exists(pathfindPrefab) ||
                     !EntityManager.HasComponent<PathfindTransportData>(pathfindPrefab))
+                    continue;
+
+                if (line.m_TransportType == TransportType.Bus)
+                    m_BusPathfindPrefabs.Add(pathfindPrefab);
+                if (m_OriginalCosts.ContainsKey(pathfindPrefab))
                     continue;
 
                 m_OriginalCosts.Add(pathfindPrefab,
@@ -122,14 +129,17 @@ namespace ConcurrentBusBoarding
                     continue;
 
                 PathfindTransportData adjusted = entry.Value;
-                adjusted.m_StartingCost.m_Value = entry.Value.m_StartingCost.m_Value * multiplier;
+                float busMultiplier = m_BusPathfindPrefabs.Contains(entry.Key)
+                    ? BoardingPolicy.BusTransitCostMultiplier()
+                    : 1f;
+                adjusted.m_StartingCost.m_Value = entry.Value.m_StartingCost.m_Value * multiplier * busMultiplier;
                 EntityManager.SetComponentData(entry.Key, adjusted);
             }
 
             RefreshRoutes();
             m_Initialized = true;
             m_AppliedAttractiveness = attractiveness;
-            Mod.Log.Info($"Public transport attractiveness set to {attractiveness}% for {m_OriginalCosts.Count} passenger pathfind prefabs.");
+            Mod.Log.Info($"Public transport attractiveness set to {attractiveness}% for {m_OriginalCosts.Count} passenger pathfind prefabs, including {m_BusPathfindPrefabs.Count} bus profile(s) at {BoardingPolicy.BusAttractiveness:0.##}x.");
         }
 
         private void RefreshRoutes()

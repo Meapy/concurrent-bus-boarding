@@ -140,6 +140,12 @@ internal static class BoardingPolicyCheck
         Expect(Near(BoardingPolicy.TransitCostMultiplier(100), 1f), "vanilla attractiveness preserves cost");
         Expect(Near(BoardingPolicy.TransitCostMultiplier(200), 0.5f), "maximum attractiveness halves cost");
         Expect(Near(BoardingPolicy.TransitCostMultiplier(0), 1f), "invalid attractiveness preserves cost");
+        Expect(Near(BoardingPolicy.BusTransitCostMultiplier(), 0.8f),
+            "bus attractiveness reduces base cost by one quarter");
+        Expect(Near(BoardingPolicy.TransitCostMultiplier(100) * BoardingPolicy.BusTransitCostMultiplier(), 0.8f),
+            "100 percent global attractiveness keeps buses at 125 percent");
+        Expect(Near(BoardingPolicy.TransitCostMultiplier(200) * BoardingPolicy.BusTransitCostMultiplier(), 0.4f),
+            "200 percent global attractiveness doubles the bus-adjusted value");
         int[] split = new int[3];
         for (uint turn = 0; turn < 10; turn++)
             split[BoardingPolicy.RotationIndex(split.Length, turn, 0)]++;

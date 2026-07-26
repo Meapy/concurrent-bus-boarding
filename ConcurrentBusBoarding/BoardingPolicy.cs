@@ -13,6 +13,7 @@ namespace ConcurrentBusBoarding
         internal const float MaximumCustomZoneLength = 200f;
         internal const uint ResidentUpdateFrames = 16u;
         internal const uint ManagedBoardingTimeoutFrames = 1800u;
+        internal const float BusAttractiveness = 1.25f;
         private const double SimulationFramesPerMinute = 182.044444444444;
 
         internal static bool IsPullInLane(bool secondaryLane, bool splitsFromRoad, bool mergesIntoRoad,
@@ -183,6 +184,11 @@ namespace ConcurrentBusBoarding
         internal static float TransitCostMultiplier(int attractiveness)
         {
             return attractiveness < 50 || attractiveness > 200 ? 1f : 100f / attractiveness;
+        }
+
+        internal static float BusTransitCostMultiplier()
+        {
+            return 1f / BusAttractiveness;
         }
 
         private static float Clamp(float value, float min, float max)
