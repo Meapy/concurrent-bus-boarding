@@ -41,6 +41,11 @@ if ($concurrentSystem -notmatch 'PublicTransportFlags\.RequireStop' -or
     $concurrentSystem -notmatch 'BoardingPolicy\.CanAdmit') {
     throw 'CBB must retain safe multi-bus zone admission through native stop requests.'
 }
+if ($zoneEditor -notmatch 'GetBuffer<ConnectedRoute>\(stop, true\)' -or
+    $zoneEditor -notmatch 'route\.m_Waypoint' -or
+    $zoneEditor -notmatch 'AddComponent<Updated>\(waypoint\)') {
+    throw 'Bus-stop rebuild must mark each linked route waypoint so native connection and path-edge rebuilds run.'
+}
 if ($mod -match 'PassengerDistributionSystem|RouteHandoffSystem') {
     throw 'Only native transport AI may own passenger boarding and route completion.'
 }

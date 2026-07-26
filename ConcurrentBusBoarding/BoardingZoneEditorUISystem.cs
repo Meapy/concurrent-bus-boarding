@@ -79,11 +79,11 @@ namespace ConcurrentBusBoarding
         {
             if (m_LoadRepairPending)
             {
-                int repaired = RebuildAllBusStops();
+                int repaired = RebuildAllBusStops(out int repairedWaypoints);
                 if (repaired != 0)
                 {
                     m_LoadRepairPending = false;
-                    Mod.Log.Info($"Rebuilt native connections for {repaired} existing bus stop(s) after city load.");
+                    Mod.Log.Info($"Requested native connection rebuild for {repaired} existing bus stop(s) and {repairedWaypoints} linked route waypoint(s) after city load.");
                     Refresh();
                 }
             }
@@ -231,15 +231,16 @@ namespace ConcurrentBusBoarding
 
         private void ResetAllBusStops()
         {
-            int count = RebuildAllBusStops();
+            int count = RebuildAllBusStops(out int waypointCount);
             m_LoadRepairPending = false;
-            Mod.Log.Info($"Requested native connection rebuild for {count} bus stop(s); attached lines were preserved.");
+            Mod.Log.Info($"Requested native connection rebuild for {count} bus stop(s) and {waypointCount} linked route waypoint(s); attached lines were preserved.");
             Refresh();
         }
 
-        private int RebuildAllBusStops()
+        private int RebuildAllBusStops(out int waypointCount)
         {
             int count = 0;
+            waypointCount = 0;
             using NativeArray<Entity> stops = m_TransportStops.ToEntityArray(Allocator.Temp);
             foreach (Entity stop in stops)
             {
@@ -247,6 +248,23 @@ namespace ConcurrentBusBoarding
                     continue;
                 if (!EntityManager.HasComponent<Updated>(stop))
                     EntityManager.AddComponent<Updated>(stop);
+                if (EntityManager.HasBuffer<ConnectedRoute>(stop))
+                {
+                    DynamicBuffer<ConnectedRoute> routes = EntityManager.GetBuffer<ConnectedRoute>(stop, true);
+                    foreach (ConnectedRoute route in routes)
+                    {
+                        Entity waypoint = route.m_Waypoint;
+                        if (waypoint != Entity.Null && EntityManager.Exists(waypoint) &&
+                            !EntityManager.HasComponent<Deleted>(waypoint) &&
+                            !EntityManager.HasComponent<Game.Tools.Temp>(waypoint) &&
+                            EntityManager.HasComponent<Waypoint>(waypoint) &&
+                            !EntityManager.HasComponent<Updated>(waypoint))
+                        {
+                            EntityManager.AddComponent<Updated>(waypoint);
+                            waypointCount++;
+                        }
+                    }
+                }
                 count++;
             }
             return count;
