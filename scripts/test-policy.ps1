@@ -21,11 +21,10 @@ $customColor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneCustomC
 $transitAttractiveness = Get-Content -Raw "$root\ConcurrentBusBoarding\PublicTransportAttractivenessSystem.cs"
 $project = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoarding.csproj"
 $breadcrumbs = Get-Content -Raw "$root\ConcurrentBusBoarding\CrashBreadcrumbs.cs"
-if ($boardingSystems -notmatch 'm_DepartureFrame = math\.max' -or
-    $boardingSystems -notmatch 'm_MaxBoardingDistance = 0f' -or
-    $boardingSystems -notmatch 'm_MinWaitingDistance = float\.MaxValue') {
-    throw 'Stopped buses must retain the proven 1.0.0 boarding dwell handshake.'
-}
+$mod = Get-Content -Raw "$root\ConcurrentBusBoarding\Mod.cs"
+$concurrentStart = $boardingSystems.IndexOf('public partial class ConcurrentBoardingSystem')
+$concurrentEnd = $boardingSystems.IndexOf('[UpdateAfter(typeof(TransportCarAISystem))]', $concurrentStart)
+$concurrentSystem = $boardingSystems.Substring($concurrentStart, $concurrentEnd - $concurrentStart)
 if ($boardingSystems -match '\.BeginBoarding\(') {
     throw 'The native boarding queue must not admit secondary buses before passenger exchange.'
 }
@@ -35,36 +34,15 @@ if ($boardingSystems -notmatch 'if \(!foundCurrentLane\)[\s\S]*?if \(element\.m_
 if ($boardingSystems -notmatch 'ConsiderLane\(entityManager, routeLane\.m_EndLane[\s\S]*?if \(lane == Entity\.Null\)[\s\S]*?ConsiderLane\(entityManager, routeLane\.m_StartLane') {
     throw 'The stop-side route end lane must remain authoritative over the approach lane.'
 }
-if ($boardingSystems -notmatch 'transport\.m_State \|= PublicTransportFlags\.EnRoute \| PublicTransportFlags\.Boarding;[\s\S]*?Add\(boarding, stop, bus\);') {
-    throw 'Passenger distribution must expose every active bus for concurrent boarding.'
+if ($concurrentSystem -match 'slot\.m_Vehicle|SetComponentData\(stop,|m_State \|=.*PublicTransportFlags\.Boarding|VehicleUtils\.SetTarget|ConcurrentBoardingActive\(') {
+    throw 'CBB stop admission must not virtualize native passenger ownership, boarding state, or route targets.'
 }
-if ($boardingSystems -notmatch 'internal Entity Stop;' -or
-    $boardingSystems -notmatch 'if \(active\.Stop != stop\)') {
-    throw 'An admitted bus must remain held until its route target advances to another stop.'
+if ($concurrentSystem -notmatch 'PublicTransportFlags\.RequireStop' -or
+    $concurrentSystem -notmatch 'BoardingPolicy\.CanAdmit') {
+    throw 'CBB must retain safe multi-bus zone admission through native stop requests.'
 }
-if ($boardingSystems -match 'active\.SelectedForVehicleAi != 0[\s\S]*?slot\.m_Vehicle != bus') {
-    throw 'Shared stop-slot rotation must not release another bus from its boarding hold.'
-}
-if ($boardingSystems -notmatch 'CanSharePassengerSlot\(EntityManager, stop, slot, selected\)' -or
-    $boardingSystems -notmatch 'active-removed route-mismatch' -or
-    $boardingSystems -notmatch 'active-removed passenger-route-mismatch' -or
-    $boardingSystems -notmatch 'IsBoardingVehicleForStop') {
-    throw 'Passenger slot rotation must remain limited to buses on its native route.'
-}
-if ($boardingSystems -notmatch 'CanFinishBoarding[\s\S]*?ArePassengersReady' -or
-    $boardingSystems -notmatch 'VehicleUtils\.SetTarget') {
-    throw 'A completed follower must use the passenger-ready gate and next waypoint.'
-}
-if ($boardingSystems -match 'BoardingData|ScheduleBoarding|EndBoarding') {
-    throw 'Synthetic follower sessions must not invoke an unmatched native boarding job.'
-}
-if ($boardingSystems -notmatch 'internal Entity Route;' -or
-    $boardingSystems -notmatch 'EnsureRouteAssociation\(bus, active\)' -or
-    $boardingSystems -notmatch 'AddComponentData\(bus, new CurrentRoute\(active\.Route\)\)' -or
-    $boardingSystems -notmatch 'BeginRouteHandoff\(bus, active\.Route\)' -or
-    $boardingSystems -notmatch 'class RouteHandoffSystem' -or
-    $boardingSystems -notmatch 'AddComponentData\(bus, new CurrentRoute\(handoff\.Route\)\)') {
-    throw 'Managed boarding must preserve the bus line association across native stop completion.'
+if ($mod -match 'PassengerDistributionSystem|RouteHandoffSystem') {
+    throw 'Only native transport AI may own passenger boarding and route completion.'
 }
 if ($boardingSystems -notmatch 'ComponentType\.ReadOnly<CurrentRoute>\(\),') {
     throw 'Concurrent admission must reject buses without a native line association.'

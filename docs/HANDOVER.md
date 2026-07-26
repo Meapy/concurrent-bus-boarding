@@ -117,10 +117,10 @@ The repeated empty-stack native failures remain correlated with synthetic admiss
 unresolved StarQ bus prefab. Requiring `CurrentRoute` prevented that known entity from entering diagnostic v6, but it is
 an exclusion guard rather than proof that the synthetic lifecycle is safe.
 
-Recommended diagnostic patch order: stop restoring routes across explicit native retirement states; fully validate the
-next waypoint before `SetTarget`; then redesign follower admission so begin/end are paired or the bus never enters the
-native completion path. A gameplay A/B should cover route abandonment, depot return, deleting an active stop, and a
-save with a missing custom-bus asset.
+The native game supports one passenger-facing `BoardingVehicle` owner per stop. Do not recreate the removed synthetic
+follower lifecycle: it wrote that owner directly without the paired native `BeginBoarding`/`EndBoarding` queue, which
+caused residents at long-lived stops to replan away from buses. CBB now limits itself to zone-capacity evaluation and
+native `RequireStop` requests; native car AI owns passenger boarding, stop ownership, timing, and route advancement.
 
 For a local crash investigation, build with
 `dotnet build ConcurrentBusBoarding.slnx -c Release -p:CbbDiagnostics=true`. The diagnostic package writes the bounded,
@@ -132,17 +132,8 @@ The post-release audit findings are addressed in the current workspace. The exac
 local `ConcurrentBusBoarding` Mods folder on 2026-07-23 while Cities II was closed; gameplay testing remains:
 
 - Mod logger errors now opt into the in-game error UI.
-- `ConcurrentBoardingActive` records whether the game or the mod began the boarding session. Synthetic sessions have
-  their `Boarding` flag cleared before `TransportCarAISystem`, so native `StopBoarding` cannot consume an unpaired
-  lifecycle. If vehicle AI begins boarding during that tick, the mod detects the returned flag and adopts the now-native
-  session instead of using managed completion.
-- Managed route preservation now requires a live route, a live target waypoint owned by that route, matching waypoint
-  index/buffer membership, an unchanged `CurrentRoute` when present, and a normal active transport state. Returning,
-  evacuating, prisoner transport, maintenance, refueling, abandon-route, dummy-traffic, disabled, out-of-control,
-  deleted, temporary, and route-reassigned buses are released without restoring the captured route.
-- Synthetic cleanup clears only synthetic boarding state and only stop-slot references still owned by that bus. Native
-  sessions are released without fabricating native cleanup.
-- Manual next-waypoint advancement validates both the current and next waypoint before calling `VehicleUtils.SetTarget`.
+- CBB does not create `ConcurrentBoardingActive`, write `BoardingVehicle`, set `Boarding`, or advance a route target.
+  Those operations now remain exclusively with the native transport-car lifecycle.
 - Stop, bus, prefab, and render-cache reads reject deleted/temporary entities. The overlay validates every lane piece,
   curve sample, bound, width, and saved custom length before drawing; it skips zero-length primitives and evicts stale
   geometry. Map dragging also rejects non-finite pointer positions and lengths.

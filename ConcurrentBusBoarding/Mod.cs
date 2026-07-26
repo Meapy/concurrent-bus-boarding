@@ -54,24 +54,15 @@ namespace ConcurrentBusBoarding
             {
                 updateSystem.UpdateBefore<ConcurrentBoardingSystem, TransportCarAISystem>(
                     SystemUpdatePhase.GameSimulation);
-                updateSystem.UpdateAfter<RouteHandoffSystem, TransportCarAISystem>(
-                    SystemUpdatePhase.GameSimulation);
-                updateSystem.UpdateAfter<PassengerDistributionSystem, TransportCarAISystem>(
-                    SystemUpdatePhase.GameSimulation);
-                Log.Info("Ordered boarding systems around the native car AI.");
+                Log.Info("Ordered native-owned bus-stop requests before the native car AI.");
                 return;
             }
 
             try
             {
                 MethodInfo before = FindRelativeUpdateMethod(nameof(UpdateSystem.UpdateBefore));
-                MethodInfo after = FindRelativeUpdateMethod(nameof(UpdateSystem.UpdateAfter));
                 object[] phase = { SystemUpdatePhase.GameSimulation };
                 before.MakeGenericMethod(typeof(ConcurrentBoardingSystem), replacement)
-                    .Invoke(updateSystem, phase);
-                after.MakeGenericMethod(typeof(RouteHandoffSystem), replacement)
-                    .Invoke(updateSystem, phase);
-                after.MakeGenericMethod(typeof(PassengerDistributionSystem), replacement)
                     .Invoke(updateSystem, phase);
                 Type allAboard = replacement.Assembly.GetType("AllAboard.AllAboard");
                 Type settings = replacement.Assembly.GetType("AllAboard.AllAboardSettings");
@@ -79,17 +70,12 @@ namespace ConcurrentBusBoarding
                     BindingFlags.Public | BindingFlags.Static);
                 s_AllAboardBusDwellMinutes = settings?.GetProperty("BusMaxDwellDelaySlider",
                     BindingFlags.Public | BindingFlags.Instance);
-                Log.Info("Ordered boarding systems around All Aboard's replacement car AI.");
-                Log.Info($"Managed follower dwell limit: {GetManagedBoardingTimeoutFrames()} frames.");
+                Log.Info("Ordered native-owned bus-stop requests before All Aboard's replacement car AI.");
             }
             catch (Exception exception)
             {
                 Log.Warn($"Could not register All Aboard compatibility ordering: {exception.Message}");
                 updateSystem.UpdateBefore<ConcurrentBoardingSystem, TransportCarAISystem>(
-                    SystemUpdatePhase.GameSimulation);
-                updateSystem.UpdateAfter<RouteHandoffSystem, TransportCarAISystem>(
-                    SystemUpdatePhase.GameSimulation);
-                updateSystem.UpdateAfter<PassengerDistributionSystem, TransportCarAISystem>(
                     SystemUpdatePhase.GameSimulation);
             }
         }
