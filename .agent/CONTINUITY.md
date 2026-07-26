@@ -268,6 +268,7 @@
 - 2026-07-21T12:05:23+01:00 [TOOL] Committed the full pull-in lane and settling-threshold correction as `a9e66b6`, pushed `feature/concurrent-boarding`, and refreshed draft PR #1 with the Butler Street evidence and current verification.
 
 [DISCOVERIES]
+- 2026-07-26T17:50:00+01:00 [TOOL] Local rollback folders placed directly beneath Cities II `Mods` are discovered as separate mods. `Modding.log` shows the active ConcurrentBusBoarding assembly loading from `ConcurrentBusBoarding.rollback-20260726-1425`, masking the new package and its Reset all bus stops setting. Move rollback folders outside `Mods` before the next launch.
 - 2026-07-26T00:08:04+01:00 [TOOL] Fresh failed-run logs proved Concurrent Bus Boarding OnLoad ran at 23:56:58, before All Aboard loaded at 23:57:00. The expected compatibility-ordering log was absent, so Type.GetType returned null and commit e2099e4 never activated its All Aboard branch.
 - 2026-07-26T00:08:04+01:00 [TOOL] All Aboard's live bus maximum dwell setting is 2 in-game minutes, while the previous managed-follower fallback remained about 10 minutes even after its readiness gate was relaxed.
 - 2026-07-25T23:39:16+01:00 [TOOL] Installed All Aboard 0.1.13 (Paradox cache 86605_17) disables native TransportCarAISystem and registers AllAboard.System.Patched.PatchedTransportCarAISystem. Its bus timeout runs only inside that replacement AI, so systems ordered around the disabled native type can miss its Boarding clear and reassert the state.
