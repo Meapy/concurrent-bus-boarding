@@ -68,6 +68,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-26T18:40:00+01:00 [CODE] Remove `BoardingHoldSystem`: it repeatedly wrote native `CarNavigation.m_MaxSpeed = 0` and never restored it after `ConcurrentBoardingActive` was removed. CBB now leaves vehicle movement entirely to native traffic, preventing buses from being permanently immobilized after their first managed stop.
 - 2026-07-26T18:22:00+01:00 [CODE] Limit `BoardingVehicle` rotation to buses on the same native `CurrentRoute` as the current passenger-facing vehicle. Release managed sessions from other routes and clear only a slot that points to a bus no longer targeting that stop. This retains concurrent boarding for same-line buses without advertising the wrong line to waiting residents.
 - 2026-07-26T18:00:00+01:00 [CODE] Repair pre-existing passenger bus stops automatically once after city load by marking them `Updated`, then keep the manual reset as an on-demand retry. This invokes native waypoint reconnection without recreating stops or removing line ownership.
 - 2026-07-26T14:20:00+01:00 [CODE] Reset all bus stops means native connection rebuild, not removal of mod overlays or `Created` recreation. Mark each live passenger bus stop `Updated`, which feeds the installed `WaypointConnectionSystem` while preserving its ConnectedRoute buffer and attached route ownership.

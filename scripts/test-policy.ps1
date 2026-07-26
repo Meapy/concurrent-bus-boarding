@@ -69,10 +69,13 @@ if ($boardingSystems -notmatch 'internal Entity Route;' -or
 if ($boardingSystems -notmatch 'ComponentType\.ReadOnly<CurrentRoute>\(\),') {
     throw 'Concurrent admission must reject buses without a native line association.'
 }
-if (($boardingSystems | Select-String -Pattern 'm_Buses = GetEntityQuery' -AllMatches).Matches.Count -ne 5 -or
-    ($boardingSystems | Select-String -Pattern 'ComponentType\.Exclude<Deleted>\(\)' -AllMatches).Matches.Count -lt 5 -or
-    ($boardingSystems | Select-String -Pattern 'ComponentType\.Exclude<Game\.Tools\.Temp>\(\)' -AllMatches).Matches.Count -lt 5) {
+if (($boardingSystems | Select-String -Pattern 'm_Buses = GetEntityQuery' -AllMatches).Matches.Count -ne 4 -or
+    ($boardingSystems | Select-String -Pattern 'ComponentType\.Exclude<Deleted>\(\)' -AllMatches).Matches.Count -lt 4 -or
+    ($boardingSystems | Select-String -Pattern 'ComponentType\.Exclude<Game\.Tools\.Temp>\(\)' -AllMatches).Matches.Count -lt 4) {
     throw 'Simulation queries must exclude deleted and temporary buses and stops.'
+}
+if ($boardingSystems -match 'm_MaxSpeed = 0f' -or $boardingSystems -match 'Moving moving') {
+    throw 'Concurrent boarding must not leave native vehicle movement capped after a stop.'
 }
 if ($boardingSystems -notmatch 'ComponentType\.ReadOnly<Owner>\(\)' -or
     $boardingSystems -notmatch 'ComponentType\.ReadOnly<PathOwner>\(\)' -or

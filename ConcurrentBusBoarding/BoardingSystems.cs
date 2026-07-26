@@ -828,48 +828,6 @@ namespace ConcurrentBusBoarding
         }
     }
 
-    [UpdateAfter(typeof(CarNavigationSystem))]
-    [UpdateBefore(typeof(CarMoveSystem))]
-    public partial class BoardingHoldSystem : GameSystemBase
-    {
-        private EntityQuery m_Buses;
-        private int m_LastActiveCount = -1;
-        [Preserve]
-        protected override void OnCreate()
-        {
-            base.OnCreate();
-            m_Buses = GetEntityQuery(
-                ComponentType.ReadOnly<ConcurrentBoardingActive>(),
-                ComponentType.ReadWrite<CarNavigation>(),
-                ComponentType.ReadWrite<Moving>(),
-                ComponentType.Exclude<Deleted>(),
-                ComponentType.Exclude<Game.Tools.Temp>());
-            RequireForUpdate(m_Buses);
-        }
-
-        [Preserve]
-        protected override void OnUpdate()
-        {
-            using NativeArray<Entity> buses = m_Buses.ToEntityArray(Allocator.Temp);
-            if (buses.Length != m_LastActiveCount)
-            {
-                m_LastActiveCount = buses.Length;
-                CrashBreadcrumbs.Write($"hold active={buses.Length}");
-            }
-            foreach (Entity bus in buses)
-            {
-                CarNavigation navigation = EntityManager.GetComponentData<CarNavigation>(bus);
-                navigation.m_MaxSpeed = 0f;
-                EntityManager.SetComponentData(bus, navigation);
-
-                Moving moving = EntityManager.GetComponentData<Moving>(bus);
-                moving.m_Velocity = float3.zero;
-                moving.m_AngularVelocity = float3.zero;
-                EntityManager.SetComponentData(bus, moving);
-            }
-        }
-    }
-
     internal static class BoardingHelpers
     {
         internal static bool CanManageRouteContext(EntityManager entityManager, Entity bus, Entity route)
