@@ -3,9 +3,11 @@ using Colossal.UI.Binding;
 using Game;
 using Game.Common;
 using Game.Routes;
+using Game.Prefabs;
 using Game.Tools;
 using Game.UI;
 using Game.UI.InGame;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine.Scripting;
@@ -17,12 +19,14 @@ namespace ConcurrentBusBoarding
     {
         private const string BindingGroup = "ConcurrentBusBoarding";
         private const int UpdateEveryFrames = 10;
+        private static volatile bool s_ResetAllBusStopsRequested;
         private static volatile bool s_ResetAllRequested;
         private static volatile bool s_ResetAllColorsRequested;
 
         private EntityQuery m_ZoneOverrides;
         private EntityQuery m_ColorOverrides;
         private EntityQuery m_CustomColors;
+        private EntityQuery m_TransportStops;
         private SelectedInfoUISystem m_SelectedInfo;
         private BoardingZoneRenderSystem m_RenderSystem;
         private BoardingZoneToolSystem m_ZoneTool;
@@ -46,6 +50,11 @@ namespace ConcurrentBusBoarding
                 ComponentType.ReadOnly<BoardingZoneCustomColor>(),
                 ComponentType.Exclude<Deleted>(),
                 ComponentType.Exclude<Game.Tools.Temp>());
+            m_TransportStops = GetEntityQuery(
+                ComponentType.ReadOnly<BoardingVehicle>(),
+                ComponentType.ReadOnly<PrefabRef>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
             m_SelectedInfo = World.GetOrCreateSystemManaged<SelectedInfoUISystem>();
             m_RenderSystem = World.GetOrCreateSystemManaged<BoardingZoneRenderSystem>();
             m_ZoneTool = World.GetOrCreateSystemManaged<BoardingZoneToolSystem>();
@@ -67,6 +76,11 @@ namespace ConcurrentBusBoarding
         [Preserve]
         protected override void OnUpdate()
         {
+            if (s_ResetAllBusStopsRequested)
+            {
+                s_ResetAllBusStopsRequested = false;
+                ResetAllBusStops();
+            }
             if (s_ResetAllRequested)
             {
                 s_ResetAllRequested = false;
@@ -201,7 +215,25 @@ namespace ConcurrentBusBoarding
             Refresh();
         }
 
+        internal static void RequestResetAllBusStops() => s_ResetAllBusStopsRequested = true;
         internal static void RequestResetAllZones() => s_ResetAllRequested = true;
+
+        private void ResetAllBusStops()
+        {
+            int count = 0;
+            using NativeArray<Entity> stops = m_TransportStops.ToEntityArray(Allocator.Temp);
+            foreach (Entity stop in stops)
+            {
+                if (!BoardingHelpers.IsPassengerBusStop(EntityManager, stop))
+                    continue;
+                if (!EntityManager.HasComponent<Updated>(stop))
+                    EntityManager.AddComponent<Updated>(stop);
+                count++;
+            }
+            Mod.Log.Info($"Requested native connection rebuild for {count} bus stop(s); attached lines were preserved.");
+            Refresh();
+        }
+
         internal static void RequestResetAllZoneColors() => s_ResetAllColorsRequested = true;
 
         private void ResetAllZones()

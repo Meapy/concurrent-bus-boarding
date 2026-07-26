@@ -68,6 +68,7 @@
 - 2026-07-20T20:59:36+01:00 [ASSUMPTION] Implement the smallest managed ECS intervention supported by the installed game assemblies, then verify a Release package before publishing source to GitHub.
 
 [DECISIONS]
+- 2026-07-26T14:20:00+01:00 [CODE] Reset all bus stops means native connection rebuild, not removal of mod overlays or `Created` recreation. Mark each live passenger bus stop `Updated`, which feeds the installed `WaypointConnectionSystem` while preserving its ConnectedRoute buffer and attached route ownership.
 - 2026-07-26T14:00:00+01:00 [CODE] Apply a fixed 1.25x bus-attractiveness multiplier by scaling native bus pathfinding starting cost to 80% of captured vanilla baseline, then compose it with the existing global 50-200% slider. Thus global 100% remains native for non-bus transport and gives buses 125%; global 200% doubles all modes and gives buses 250%.
 - 2026-07-26T00:08:04+01:00 [CODE] Defer the three boarding-system registrations until the first Modification1 update, after every mod OnLoad has completed. At that point bind around All Aboard's replacement car AI when present, otherwise bind around native TransportCarAISystem.
 - 2026-07-26T00:08:04+01:00 [CODE] Read All Aboard's public BusMaxDwellDelaySlider at runtime and convert it with All Aboard's exact 182.044444 frames-per-minute rate. Managed followers now use the same configured dwell limit; invalid or unavailable settings retain the 1800-frame fallback.

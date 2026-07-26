@@ -55,6 +55,15 @@ namespace ConcurrentBusBoarding
         [SettingsUISection(MainSection, DisplayGroup)]
         [SettingsUIButton]
         [SettingsUIConfirmation(null,
+            "Rebuild every bus stop's native connections in the current city? Existing lines stay attached.")]
+        public bool ResetAllBusStops
+        {
+            set => BoardingZoneEditorUISystem.RequestResetAllBusStops();
+        }
+
+        [SettingsUISection(MainSection, DisplayGroup)]
+        [SettingsUIButton]
+        [SettingsUIConfirmation(null,
             "Reset every customized bus boarding zone in the current city? This cannot be undone.")]
         public bool ResetAllZones
         {
@@ -155,6 +164,10 @@ namespace ConcurrentBusBoarding
                     "Overlay opacity" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.OverlayOpacity)),
                     "Set boarding-zone opacity. Lower percentages make every overlay more transparent." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllBusStops)),
+                    "Reset all bus stops" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllBusStops)),
+                    "Rebuild every bus stop's native pathfinding connections while preserving all attached lines." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
                     "Reset all customized zones" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
