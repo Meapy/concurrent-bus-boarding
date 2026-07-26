@@ -33,6 +33,7 @@ namespace ConcurrentBusBoarding
         private ToolSystem m_ToolSystem;
         private DefaultToolSystem m_DefaultTool;
         private int m_Frame;
+        private bool m_LoadRepairPending = true;
 
         [Preserve]
         protected override void OnCreate()
@@ -76,6 +77,16 @@ namespace ConcurrentBusBoarding
         [Preserve]
         protected override void OnUpdate()
         {
+            if (m_LoadRepairPending)
+            {
+                int repaired = RebuildAllBusStops();
+                if (repaired != 0)
+                {
+                    m_LoadRepairPending = false;
+                    Mod.Log.Info($"Rebuilt native connections for {repaired} existing bus stop(s) after city load.");
+                    Refresh();
+                }
+            }
             if (s_ResetAllBusStopsRequested)
             {
                 s_ResetAllBusStopsRequested = false;
@@ -220,6 +231,14 @@ namespace ConcurrentBusBoarding
 
         private void ResetAllBusStops()
         {
+            int count = RebuildAllBusStops();
+            m_LoadRepairPending = false;
+            Mod.Log.Info($"Requested native connection rebuild for {count} bus stop(s); attached lines were preserved.");
+            Refresh();
+        }
+
+        private int RebuildAllBusStops()
+        {
             int count = 0;
             using NativeArray<Entity> stops = m_TransportStops.ToEntityArray(Allocator.Temp);
             foreach (Entity stop in stops)
@@ -230,8 +249,7 @@ namespace ConcurrentBusBoarding
                     EntityManager.AddComponent<Updated>(stop);
                 count++;
             }
-            Mod.Log.Info($"Requested native connection rebuild for {count} bus stop(s); attached lines were preserved.");
-            Refresh();
+            return count;
         }
 
         internal static void RequestResetAllZoneColors() => s_ResetAllColorsRequested = true;
