@@ -35,8 +35,8 @@ namespace ConcurrentBusBoarding
             AssetDatabase.global.LoadSettings("ConcurrentBusBoarding", Settings,
                 new ConcurrentBusBoardingSettings(this));
             CrashBreadcrumbs.Write("mod-onload after-settings");
-            updateSystem.UpdateBefore<PublicTransportAttractivenessSystem, RoutesModifiedSystem>(
-                SystemUpdatePhase.Modification5);
+            updateSystem.UpdateBefore<PublicTransportAttractivenessSystem, ResidentAISystem>(
+                SystemUpdatePhase.GameSimulation);
             // ponytail: no approach/front-position or passenger-spread system; native traffic owns movement.
             BoardingSystemRegistrationSystem.Configure(updateSystem);
             updateSystem.UpdateAt<BoardingSystemRegistrationSystem>(SystemUpdatePhase.Modification1);

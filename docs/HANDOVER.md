@@ -2,7 +2,11 @@
 
 ## Release candidate
 
-Version 1.4.0 is the current release candidate for Cities: Skylines II 1.6.0.
+Version 1.4.2 is the current release candidate for Cities: Skylines II 1.6.0.
+
+> Version 1.4.2 fixes the public transport attractiveness slider's runtime scheduling. It now waits for loaded passenger
+> pathfind data during normal simulation, refreshes route costs before resident path selection, and logs the saved
+> percentage plus the number of affected native cost profiles.
 
 > Version 1.3.0 is the published concurrent-boarding and overlay-colour implementation. Version 1.4.0 adds one
 > global public-transport attractiveness slider without changing boarding, vehicle movement, or route ownership.

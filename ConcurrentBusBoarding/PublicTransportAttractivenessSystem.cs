@@ -7,6 +7,7 @@ using Game.Prefabs;
 using Game.Routes;
 using Unity.Collections;
 using Unity.Entities;
+using UnityEngine.Scripting;
 
 namespace ConcurrentBusBoarding
 {
@@ -17,14 +18,13 @@ namespace ConcurrentBusBoarding
         private EntityQuery m_RouteElements;
         private int m_AppliedAttractiveness;
         private bool m_Initialized;
+        private bool m_LoggedWaitingForCosts;
 
+        [Preserve]
         protected override void OnCreate()
         {
             base.OnCreate();
-            m_LinePrefabs = GetEntityQuery(
-                ComponentType.ReadOnly<TransportLineData>(),
-                ComponentType.Exclude<Deleted>(),
-                ComponentType.Exclude<Game.Tools.Temp>());
+            m_LinePrefabs = GetEntityQuery(ComponentType.ReadOnly<TransportLineData>());
             m_RouteElements = GetEntityQuery(new EntityQueryDesc
             {
                 Any = new[]
@@ -46,8 +46,10 @@ namespace ConcurrentBusBoarding
                     ComponentType.ReadOnly<Game.Tools.Temp>()
                 }
             });
+            RequireForUpdate(m_LinePrefabs);
         }
 
+        [Preserve]
         protected override void OnUpdate()
         {
             int attractiveness = Mod.Settings?.PublicTransportAttractiveness ?? 100;
@@ -56,12 +58,20 @@ namespace ConcurrentBusBoarding
 
             CaptureOriginalCosts();
             if (m_OriginalCosts.Count == 0)
+            {
+                if (!m_LoggedWaitingForCosts)
+                {
+                    m_LoggedWaitingForCosts = true;
+                    Mod.Log.Warn("Public transport attractiveness found no passenger pathfind costs; retrying.");
+                }
                 return;
+            }
 
             if (!m_Initialized && attractiveness == 100)
             {
                 m_Initialized = true;
                 m_AppliedAttractiveness = attractiveness;
+                Mod.Log.Info($"Public transport attractiveness ready for {m_OriginalCosts.Count} passenger pathfind prefabs at 100%.");
                 return;
             }
 
@@ -119,7 +129,7 @@ namespace ConcurrentBusBoarding
             RefreshRoutes();
             m_Initialized = true;
             m_AppliedAttractiveness = attractiveness;
-            Mod.Log.Info($"Public transport attractiveness set to {attractiveness}%.");
+            Mod.Log.Info($"Public transport attractiveness set to {attractiveness}% for {m_OriginalCosts.Count} passenger pathfind prefabs.");
         }
 
         private void RefreshRoutes()

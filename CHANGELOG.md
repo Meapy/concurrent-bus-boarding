@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.4.2 - 2026-07-26
+
+- Fix the public transport attractiveness slider so it applies after native passenger pathfind data becomes available.
+- Refresh passenger route costs before residents plan paths and log the number of active transport cost profiles.
+
 ## 1.4.1 - 2026-07-26
 
 - Integrate with All Aboard 0.1.13 even when it loads after Concurrent Bus Boarding.
