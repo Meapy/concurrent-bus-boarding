@@ -175,6 +175,9 @@ namespace ConcurrentBusBoarding
                 var activeBuses = new List<Entity>();
                 float occupiedLength = 0f;
                 BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
+                if (slot.m_Vehicle != Entity.Null &&
+                    !BoardingHelpers.IsBoardingVehicleForStop(EntityManager, stop, slot.m_Vehicle))
+                    slot.m_Vehicle = Entity.Null;
 
                 foreach (Entity bus in entry.Value)
                 {
@@ -260,6 +263,18 @@ namespace ConcurrentBusBoarding
                         slot.m_Testing = Entity.Null;
                 }
 
+                for (int index = activeBuses.Count - 1; index >= 0; index--)
+                {
+                    Entity bus = activeBuses[index];
+                    if (BoardingHelpers.CanSharePassengerSlot(EntityManager, stop, slot, bus))
+                        continue;
+                    ConcurrentBoardingActive active =
+                        EntityManager.GetComponentData<ConcurrentBoardingActive>(bus);
+                    CrashBreadcrumbs.Write($"active-removed route-mismatch bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+                    BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                    activeBuses.RemoveAt(index);
+                }
+
                 if (activeBuses.Count == 0)
                 {
                     EntityManager.SetComponentData(stop, slot);
@@ -270,7 +285,7 @@ namespace ConcurrentBusBoarding
                 foreach (Entity bus in activeBuses)
                     PrepareForVehicleAi(bus, stop, bus == selected);
 
-                if (slot.m_Vehicle == Entity.Null || BoardingHelpers.IsBus(EntityManager, slot.m_Vehicle))
+                if (BoardingHelpers.CanSharePassengerSlot(EntityManager, stop, slot, selected))
                     slot.m_Vehicle = selected;
                 if (slot.m_Testing != Entity.Null &&
                     EntityManager.HasComponent<ConcurrentBoardingActive>(slot.m_Testing))
@@ -515,6 +530,14 @@ namespace ConcurrentBusBoarding
                         continue;
                     }
 
+                    BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
+                    if (!BoardingHelpers.CanSharePassengerSlot(EntityManager, stop, slot, bus))
+                    {
+                        CrashBreadcrumbs.Write($"active-removed passenger-route-mismatch bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+                        BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                        continue;
+                    }
+
                     VehiclePublicTransport transport = EntityManager.GetComponentData<VehiclePublicTransport>(bus);
                     if (active.Stop != stop)
                     {
@@ -568,7 +591,7 @@ namespace ConcurrentBusBoarding
                 if (!EntityManager.HasComponent<BoardingVehicle>(stop))
                     continue;
                 BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
-                if (slot.m_Vehicle != Entity.Null && !BoardingHelpers.IsBus(EntityManager, slot.m_Vehicle))
+                if (!BoardingHelpers.CanSharePassengerSlot(EntityManager, stop, slot, entry.Value[0]))
                     continue;
                 uint turn = BoardingPolicy.PassengerSelectionTurn(m_SimulationSystem.frameIndex);
                 slot.m_Vehicle = entry.Value[
@@ -1414,6 +1437,24 @@ namespace ConcurrentBusBoarding
                 !entityManager.HasComponent<Game.Tools.Temp>(prefab) &&
                 entityManager.HasComponent<PublicTransportVehicleData>(prefab) &&
                 entityManager.GetComponentData<PublicTransportVehicleData>(prefab).m_TransportType == TransportType.Bus;
+        }
+
+        internal static bool IsBoardingVehicleForStop(EntityManager entityManager, Entity stop, Entity vehicle)
+        {
+            return IsBus(entityManager, vehicle) &&
+                TryGetStop(entityManager, vehicle, out Entity targetStop) && targetStop == stop &&
+                entityManager.HasComponent<CurrentRoute>(vehicle);
+        }
+
+        internal static bool CanSharePassengerSlot(EntityManager entityManager, Entity stop,
+            BoardingVehicle slot, Entity vehicle)
+        {
+            if (slot.m_Vehicle == Entity.Null)
+                return true;
+            return IsBoardingVehicleForStop(entityManager, stop, slot.m_Vehicle) &&
+                entityManager.HasComponent<CurrentRoute>(vehicle) &&
+                entityManager.GetComponentData<CurrentRoute>(slot.m_Vehicle).m_Route ==
+                entityManager.GetComponentData<CurrentRoute>(vehicle).m_Route;
         }
 
         internal static bool HasLoadedCarPrefab(EntityManager entityManager, PrefabSystem prefabSystem, Entity vehicle,

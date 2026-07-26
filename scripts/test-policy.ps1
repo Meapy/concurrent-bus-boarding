@@ -45,6 +45,12 @@ if ($boardingSystems -notmatch 'internal Entity Stop;' -or
 if ($boardingSystems -match 'active\.SelectedForVehicleAi != 0[\s\S]*?slot\.m_Vehicle != bus') {
     throw 'Shared stop-slot rotation must not release another bus from its boarding hold.'
 }
+if ($boardingSystems -notmatch 'CanSharePassengerSlot\(EntityManager, stop, slot, selected\)' -or
+    $boardingSystems -notmatch 'active-removed route-mismatch' -or
+    $boardingSystems -notmatch 'active-removed passenger-route-mismatch' -or
+    $boardingSystems -notmatch 'IsBoardingVehicleForStop') {
+    throw 'Passenger slot rotation must remain limited to buses on its native route.'
+}
 if ($boardingSystems -notmatch 'CanFinishBoarding[\s\S]*?ArePassengersReady' -or
     $boardingSystems -notmatch 'VehicleUtils\.SetTarget') {
     throw 'A completed follower must use the passenger-ready gate and next waypoint.'
