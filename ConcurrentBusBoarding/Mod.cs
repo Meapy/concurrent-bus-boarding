@@ -35,12 +35,25 @@ namespace ConcurrentBusBoarding
             AssetDatabase.global.LoadSettings("ConcurrentBusBoarding", Settings,
                 new ConcurrentBusBoardingSettings(this));
             CrashBreadcrumbs.Write("mod-onload after-settings");
+#if CBB_OBSERVER_ONLY
+            Log.Warn("Observer-only diagnostic build: no simulation systems are registered. " +
+                "Boarding, holding, passenger distribution and transport attractiveness are all inactive.");
+#else
             updateSystem.UpdateBefore<PublicTransportAttractivenessSystem, ResidentAISystem>(
                 SystemUpdatePhase.GameSimulation);
-            // ponytail: no approach/front-position or passenger-spread system; native traffic owns movement.
+            // ponytail: no approach/front-position or passenger-spread system; native traffic owns
+            // movement and the native queue owns where cims wait. The spread was briefly registered
+            // on the theory that concurrent buses were unreachable; measurement disproved that
+            // (buses board and unload normally at zone distances), so its only remaining effect was
+            // to displace waiting cims from their stop, which correlates with cims abandoning the
+            // wait. Do not re-register it without evidence that waiting position is the problem.
             BoardingSystemRegistrationSystem.Configure(updateSystem);
             updateSystem.UpdateAt<BoardingSystemRegistrationSystem>(SystemUpdatePhase.Modification1);
             updateSystem.UpdateAfter<BoardingHoldSystem, CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
+#endif
+            // Registered in observer-only builds too: repairing residue left by earlier versions is
+            // independent of whether concurrent boarding is active.
+            updateSystem.UpdateAt<BoardingRepairSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAt<BoardingZoneToolSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAt<BoardingZoneRenderSystem>(SystemUpdatePhase.Rendering);
             updateSystem.UpdateAt<BoardingZoneEditorUISystem>(SystemUpdatePhase.UIUpdate);

@@ -21,10 +21,36 @@ $customColor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneCustomC
 $transitAttractiveness = Get-Content -Raw "$root\ConcurrentBusBoarding\PublicTransportAttractivenessSystem.cs"
 $project = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoarding.csproj"
 $breadcrumbs = Get-Content -Raw "$root\ConcurrentBusBoarding\CrashBreadcrumbs.cs"
-if ($boardingSystems -notmatch 'm_DepartureFrame = math\.max' -or
-    $boardingSystems -notmatch 'm_MaxBoardingDistance = 0f' -or
+if ($boardingSystems -match 'm_DepartureFrame = math\.max') {
+    throw 'A synthetic session must open its dwell window from the current frame, as native StartBoarding does.'
+}
+# Admission must open the boarding window; only the doors-closing phase may shut it.
+if ($boardingSystems -notmatch 'private void BeginBoarding[\s\S]*?m_MaxBoardingDistance = float\.MaxValue;' -or
+    $boardingSystems -match 'private void BeginBoarding[\s\S]*?m_MaxBoardingDistance = 0f;[\s\S]*?\n        \}') {
+    throw 'Admission must open the boarding window; only the doors-closing phase may shut it.'
+}
+if ($boardingSystems -notmatch 'm_DepartureFrame = m_SimulationSystem\.frameIndex \+ 64u' -or
+    $boardingSystems -notmatch 'm_MaxBoardingDistance = float\.MaxValue' -or
     $boardingSystems -notmatch 'm_MinWaitingDistance = float\.MaxValue') {
-    throw 'Stopped buses must retain the proven 1.0.0 boarding dwell handshake.'
+    throw 'Stopped buses must retain the boarding dwell handshake with an open first window.'
+}
+if ($boardingSystems -notmatch 'internal uint AdmittedFrame;' -or
+    $boardingSystems -notmatch 'BoardingPolicy\.HasSessionExpired\(' -or
+    $boardingSystems -notmatch 'ForceReleaseConcurrentBoarding\(EntityManager, bus, active\)') {
+    throw 'Every managed session must be released by an unconditional admission-frame deadline.'
+}
+if ($boardingSystems -notmatch 'internal byte SelectedForPassengers;' -or
+    $boardingSystems -notmatch 'SelectedForPassengers != 0' -or
+    $boardingSystems -match 'PassengerSelectionTurn') {
+    throw 'The passenger stop slot must follow the car-AI tick selection, not a free-running frame counter.'
+}
+if ($boardingSystems -notmatch 'ShouldExposeBoardingToVehicleAi\(active\.UsesNativeBoarding != 0\)') {
+    throw 'A native boarding session must stay continuously visible to the car AI.'
+}
+if ($boardingSystems -notmatch 'BoardingPolicy\.NativeCompletionGraceFrames' -or
+    $boardingSystems -notmatch 'm_NativeCompletions\+\+' -or
+    $boardingSystems -notmatch 'm_ManagedCompletions\+\+') {
+    throw 'A follower the native lifecycle cannot finish must reach managed completion before the dwell deadline.'
 }
 if ($boardingSystems -match '\.BeginBoarding\(') {
     throw 'The native boarding queue must not admit secondary buses before passenger exchange.'
@@ -45,9 +71,67 @@ if ($boardingSystems -notmatch 'internal Entity Stop;' -or
 if ($boardingSystems -match 'active\.SelectedForVehicleAi != 0[\s\S]*?slot\.m_Vehicle != bus') {
     throw 'Shared stop-slot rotation must not release another bus from its boarding hold.'
 }
-if ($boardingSystems -notmatch 'CanFinishBoarding[\s\S]*?ArePassengersReady' -or
+if ($boardingSystems -notmatch 'ArePassengersReady\(' -or
+    $boardingSystems -notmatch 'BoardingPolicy\.CanFinishBoarding\(' -or
     $boardingSystems -notmatch 'VehicleUtils\.SetTarget') {
     throw 'A completed follower must use the passenger-ready gate and next waypoint.'
+}
+if ($boardingSystems -notmatch 'BoardingPolicy\.IdleAttemptsBeforeDeparture' -or
+    $boardingSystems -notmatch 'internal byte IdleAttempts;') {
+    throw 'A concurrent bus must be able to finish on its own exchange, not only on the shared queue ratchet.'
+}
+if ($boardingSystems -match 'else if \(!passengersReady && !timedOut\)' -or
+    $boardingSystems -notmatch 'CountUnreadyPassengers\(EntityManager, bus,' -or
+    $boardingSystems -notmatch 'm_SessionsThatSawAWaitingCim\+\+') {
+    throw 'Completion gates must be measured independently; a chained counter hides every gate after the first.'
+}
+if ($boardingSystems -notmatch 'BoardingPolicy\.ShouldEngageConcurrentBoarding\(contenders\)' -or
+    $boardingSystems -notmatch 'if \(!engage \|\|') {
+    throw 'A single bus at a stop must be left entirely to native AI; the mod only resolves contention.'
+}
+if ($boardingSystems -notmatch 'BoardingPolicy\.ShouldCloseDoors\(' -or
+    $boardingSystems -notmatch 'internal byte DoorsClosing;' -or
+    $boardingSystems -notmatch 'transport\.m_MaxBoardingDistance = 0f;') {
+    throw 'A boarding session must stop admitting new passengers before it can require them all to be ready.'
+}
+if ($boardingSystems -notmatch 'entry\.Value\.Contains\(slot\.m_Vehicle\)' -or
+    $boardingSystems -notmatch '!BoardingHelpers\.ArePassengersReady\(EntityManager, slot\.m_Vehicle\)') {
+    throw 'Stop-slot rotation must not strand a cim that is still climbing aboard the current bus.'
+}
+$mod = Get-Content -Raw "$root\ConcurrentBusBoarding\Mod.cs"
+$repair = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingRepairSystem.cs"
+if ($mod -notmatch 'UpdateAt<BoardingRepairSystem>' -or
+    $repair -notmatch 'OnGameLoadingComplete' -or
+    $repair -notmatch 'RequestRepair' -or
+    $settings -notmatch 'RepairBoardingState') {
+    throw 'Residue left in a saved city must be repaired on load and on demand.'
+}
+# A bus that is not boarding has a zero boarding distance and a stale departure frame by design.
+# Repairing those would rewrite every healthy vehicle in the city instead of the stuck ones.
+if ($repair -notmatch 'if \(boarding\)') {
+    throw 'Vehicle repair must only touch buses that are actually stuck in Boarding.'
+}
+# Measurement disproved the reachability premise: concurrent buses board and unload normally at
+# zone distances, so admission must not reject a contained bus on distance alone.
+if ($boardingSystems -match 'IsWithinPassengerReach') {
+    throw 'Admission must not reject a contained bus on distance; measurement disproved that premise.'
+}
+# The spread system stays unregistered: its premise was disproven and displacing waiting cims
+# correlates with them abandoning the wait. If it is ever re-registered, LimitWaitingBoundsToReach
+# must bound it.
+if ($mod -match 'UpdateAfter<PassengerWaitingSpreadSystem') {
+    throw 'The passenger spread must stay unregistered; the native queue owns where cims wait.'
+}
+if ($boardingSystems -notmatch 'LimitWaitingBoundsToReach') {
+    throw 'Keep the bounded waiting helper so any future spread cannot place cims outside the zone.'
+}
+if ($project -notmatch 'CbbObserverOnly' -or
+    $project -notmatch 'CBB_OBSERVER_ONLY' -or
+    $mod -notmatch '#if CBB_OBSERVER_ONLY') {
+    throw 'The observer-only A/B package must stay an opt-in build flag.'
+}
+if ($env:CbbObserverOnly -eq 'true') {
+    throw 'Refusing to validate an observer-only build as a release package.'
 }
 if ($boardingSystems -match 'BoardingData|ScheduleBoarding|EndBoarding') {
     throw 'Synthetic follower sessions must not invoke an unmatched native boarding job.'

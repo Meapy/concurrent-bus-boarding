@@ -26,6 +26,15 @@ namespace ConcurrentBusBoarding
         [SettingsUISlider(min = 50f, max = 200f, step = 5f, unit = "%")]
         public int PublicTransportAttractiveness { get; set; } = 100;
 
+        [SettingsUISection(MainSection, TransportGroup)]
+        [SettingsUIButton]
+        [SettingsUIConfirmation(null,
+            "Clear stuck boarding state from every bus stop and bus in this city? Use this if a city saved with an earlier version has stops that no longer board passengers.")]
+        public bool RepairBoardingState
+        {
+            set => BoardingRepairSystem.RequestRepair();
+        }
+
         [SettingsUISection(MainSection, DisplayGroup)]
         public bool OnlyShowSelectedStop { get; set; }
 
@@ -143,6 +152,10 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionDescLocaleID(
                         nameof(ConcurrentBusBoardingSettings.PublicTransportAttractiveness)),
                     "Adjust how strongly residents prefer passenger public transport when choosing a route. 100% keeps the vanilla cost; higher values make public transport more attractive." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.RepairBoardingState)),
+                    "Repair stuck bus stops" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.RepairBoardingState)),
+                    "Clear boarding state left behind in this city by an earlier version: stops still reserved for a bus that has gone, and buses that can no longer accept passengers or depart. Runs automatically once each time a city loads." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.OnlyShowSelectedStop)),
                     "Only show the selected stop" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.OnlyShowSelectedStop)),

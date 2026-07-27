@@ -47,6 +47,20 @@ internal static class BoardingPolicyCheck
         Expect(!BoardingPolicy.ShouldDrawZone(true, false, false), "hide unselected overlay");
         Expect(BoardingPolicy.ShouldDrawZone(true, true, false), "show selected overlay");
         Expect(BoardingPolicy.ShouldDrawZone(true, false, true), "show editing overlay");
+        float reachStart;
+        float reachEnd;
+        BoardingPolicy.LimitWaitingBoundsToReach(0.2f, 0.8f, 100f, 1, 20f, out reachStart, out reachEnd);
+        Expect(Near(reachStart, 0.6f) && Near(reachEnd, 0.8f),
+            "increasing waiting band is trimmed to the reachable distance");
+        BoardingPolicy.LimitWaitingBoundsToReach(0.2f, 0.8f, 100f, -1, 20f, out reachStart, out reachEnd);
+        Expect(Near(reachStart, 0.2f) && Near(reachEnd, 0.4f),
+            "decreasing waiting band is trimmed to the reachable distance");
+        BoardingPolicy.LimitWaitingBoundsToReach(0.7f, 0.8f, 100f, 1, 20f, out reachStart, out reachEnd);
+        Expect(Near(reachStart, 0.7f) && Near(reachEnd, 0.8f),
+            "a short zone is never widened by the reach limit");
+        BoardingPolicy.LimitWaitingBoundsToReach(0.2f, 0.8f, 0f, 1, 20f, out reachStart, out reachEnd);
+        Expect(Near(reachStart, 0.2f) && Near(reachEnd, 0.8f),
+            "an invalid lane length leaves the waiting band untouched");
         Expect(Near(BoardingPolicy.WaitingPosition(0.2f, 0.8f, 1, 0f), 0.8f),
             "increasing waiting starts at zone front");
         Expect(Near(BoardingPolicy.WaitingPosition(0.2f, 0.8f, -1, 0f), 0.2f),
@@ -76,6 +90,12 @@ internal static class BoardingPolicyCheck
         Expect(start == 0.5f && end == 0.5f, "invalid custom lane has no boarding area");
         Expect(BoardingPolicy.RotationIndex(3, 0, 0) == 0, "rotation start");
         Expect(BoardingPolicy.RotationIndex(3, 1, 0) == 1, "rotation advance");
+        Expect(!BoardingPolicy.ShouldEngageConcurrentBoarding(0),
+            "an empty stop needs no concurrent boarding");
+        Expect(!BoardingPolicy.ShouldEngageConcurrentBoarding(1),
+            "a single bus is left entirely to native AI");
+        Expect(BoardingPolicy.ShouldEngageConcurrentBoarding(2),
+            "two buses at one stop are what the mod exists to resolve");
         Expect(!BoardingPolicy.CanBeginSyntheticBoarding(0),
             "first bus must use the native boarding lifecycle");
         Expect(BoardingPolicy.CanBeginSyntheticBoarding(1),
@@ -86,29 +106,40 @@ internal static class BoardingPolicyCheck
             "bus outside available zone does not request a stop");
         Expect(!BoardingPolicy.ShouldRequestStop(true, true),
             "boarding bus does not repeat the stop request");
-        Expect(BoardingPolicy.PassengerSelectionTurn(0) == 0, "passenger selection starts at first sweep");
-        Expect(BoardingPolicy.PassengerSelectionTurn(15) == 0,
-            "passenger selection stays fixed for every resident partition");
-        Expect(BoardingPolicy.PassengerSelectionTurn(16) == 1,
-            "passenger selection advances after a complete resident sweep");
-        for (uint frame = 0; frame < BoardingPolicy.ResidentUpdateFrames; frame++)
-            Expect(BoardingPolicy.RotationIndex(2, BoardingPolicy.PassengerSelectionTurn(frame), 0) == 0,
-                "all first-sweep resident partitions see the lead bus");
-        for (uint frame = BoardingPolicy.ResidentUpdateFrames;
-             frame < BoardingPolicy.ResidentUpdateFrames * 2;
-             frame++)
-            Expect(BoardingPolicy.RotationIndex(2, BoardingPolicy.PassengerSelectionTurn(frame), 0) == 1,
-                "all second-sweep resident partitions see the following bus");
-        Expect(!BoardingPolicy.CanFinishBoarding(99, 100, float.MaxValue, true, false),
+        Expect(!BoardingPolicy.CanFinishBoarding(99, 100, float.MaxValue, true, false, false),
             "boarding dwell must finish");
-        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, true, false),
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, true, false, false),
             "waiting passengers must finish");
-        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, false),
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, false, false),
             "onboard transitions must finish");
-        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, true, false),
+        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, true, false, false),
             "completed follower can leave");
-        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, true),
+        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, true, false),
             "timed-out follower can leave despite a stuck passenger transition");
+        Expect(BoardingPolicy.CanFinishBoarding(100, 100, 12f, true, false, true),
+            "a bus whose own exchange has settled leaves while the queue is still busy");
+        Expect(!BoardingPolicy.CanFinishBoarding(99, 100, 12f, true, false, true),
+            "a settled exchange still respects the minimum dwell");
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, false, false, true),
+            "a settled exchange still waits for onboard transitions");
+        Expect(BoardingPolicy.IdleAttemptsBeforeDeparture > 0,
+            "the exchange must be observed at least once before it counts as settled");
+        Expect(BoardingPolicy.ShouldCloseDoors(false, 100, 100, 512, true),
+            "a settled exchange closes the doors immediately");
+        Expect(!BoardingPolicy.ShouldCloseDoors(false, 611, 100, 512, false),
+            "a busy stop keeps admitting boarders inside the window");
+        Expect(BoardingPolicy.ShouldCloseDoors(false, 612, 100, 512, false),
+            "a busy stop must still close its doors when the window elapses");
+        Expect(!BoardingPolicy.ShouldCloseDoors(true, 1000, 100, 512, true),
+            "doors are only closed once per session");
+        Expect(BoardingPolicy.BoardingWindowFrames < BoardingPolicy.ManagedBoardingTimeoutFrames,
+            "the boarding window must close well before the dwell deadline");
+        Expect(BoardingPolicy.CanDepartAfterDoorsClosed(true, false),
+            "a closed bus leaves once its boarders are ready");
+        Expect(!BoardingPolicy.CanDepartAfterDoorsClosed(false, false),
+            "a closed bus still waits for cims already climbing aboard");
+        Expect(BoardingPolicy.CanDepartAfterDoorsClosed(false, true),
+            "a closed bus leaves anyway once it has timed out");
         Expect(BoardingPolicy.BoardingTimeoutFrames(2) == 365,
             "All Aboard's configured minutes use its exact simulation rate");
         Expect(BoardingPolicy.BoardingTimeoutFrames(0) == BoardingPolicy.ManagedBoardingTimeoutFrames,
@@ -119,16 +150,28 @@ internal static class BoardingPolicyCheck
             "configured dwell delay remains available");
         Expect(BoardingPolicy.HasBoardingTimedOut(465, 100, 365),
             "configured dwell delay eventually releases the follower");
-        Expect(BoardingPolicy.ShouldExposeBoardingToVehicleAi(true, true),
-            "selected native session remains visible to vehicle AI");
-        Expect(!BoardingPolicy.ShouldExposeBoardingToVehicleAi(false, true),
+        Expect(BoardingPolicy.ShouldExposeBoardingToVehicleAi(true),
+            "native session stays continuously visible to vehicle AI");
+        Expect(!BoardingPolicy.ShouldExposeBoardingToVehicleAi(false),
             "synthetic session never enters native completion");
-        Expect(!BoardingPolicy.ShouldExposeBoardingToVehicleAi(true, false),
-            "unselected native session stays out of vehicle AI");
-        Expect(BoardingPolicy.ShouldCompleteManagedBoarding(false, true),
-            "selected synthetic session uses managed completion");
-        Expect(!BoardingPolicy.ShouldCompleteManagedBoarding(true, true),
-            "native session never uses synthetic completion");
+        Expect(!BoardingPolicy.HasSessionExpired(1000, 0, 1800),
+            "a session without an admission frame cannot expire");
+        Expect(!BoardingPolicy.HasSessionExpired(1899, 100, 1800),
+            "a session within the configured dwell is retained");
+        Expect(BoardingPolicy.HasSessionExpired(1900, 100, 1800),
+            "a session past the configured dwell is always released");
+        Expect(BoardingPolicy.HasSessionExpired(465, 100, BoardingPolicy.BoardingTimeoutFrames(2)),
+            "the deadline honours All Aboard's configured dwell");
+        Expect(BoardingPolicy.ShouldCompleteManagedBoarding(false, true, 100, 100, 256),
+            "selected synthetic session uses managed completion immediately");
+        Expect(!BoardingPolicy.ShouldCompleteManagedBoarding(false, false, 100, 100, 256),
+            "an unselected session never completes");
+        Expect(!BoardingPolicy.ShouldCompleteManagedBoarding(true, true, 355, 100, 256),
+            "a native session keeps its grace window");
+        Expect(BoardingPolicy.ShouldCompleteManagedBoarding(true, true, 356, 100, 256),
+            "a follower the native lifecycle cannot finish falls back to managed completion");
+        Expect(BoardingPolicy.NativeCompletionGraceFrames < BoardingPolicy.ManagedBoardingTimeoutFrames,
+            "managed completion must be tried well before the dwell deadline");
         Expect(BoardingPolicy.ShouldAdoptNativeBoarding(false, true, true),
             "vehicle AI can replace a selected synthetic session with a native session");
         Expect(!BoardingPolicy.ShouldAdoptNativeBoarding(false, false, true),

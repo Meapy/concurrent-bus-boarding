@@ -3,6 +3,10 @@
     <Configurations>Debug;Release</Configurations>
     <CSIIToolPath Condition="'$(CSIIToolPath)' == ''">$([System.Environment]::GetEnvironmentVariable('CSII_TOOLPATH', 'EnvironmentVariableTarget.User'))</CSIIToolPath>
     <DefineConstants Condition="'$(CbbDiagnostics)' == 'true'">$(DefineConstants);CBB_DIAGNOSTICS</DefineConstants>
+    <!-- A/B diagnostic package: registers only settings, zone editing, overlay and UI systems.
+         No simulation mutation at all, so a run with this build isolates whether this mod is
+         responsible for an observed simulation change. Never set for a release build. -->
+    <DefineConstants Condition="'$(CbbObserverOnly)' == 'true'">$(DefineConstants);CBB_OBSERVER_ONLY</DefineConstants>
   </PropertyGroup>
 
   <Import Project="$(CSIIToolPath)\Mod.props" />

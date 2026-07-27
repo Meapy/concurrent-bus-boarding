@@ -1,6 +1,28 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 - 2026-07-27
+
+Buses could get stuck at stops and stay there until their dwell limit expired, which inflated
+journey times across every line. This release fixes that and greatly narrows when the mod
+intervenes at all.
+
+Note: this does not claim to fix declining passenger numbers. Testing with the mod fully
+disabled showed the same decline, so that has a cause outside this mod.
+
+- Fix buses becoming stuck at a stop until their dwell limit expired. A concurrently boarding bus could keep its native boarding session re-armed indefinitely and never depart.
+- Keep a native boarding session continuously visible to the vehicle AI instead of hiding it between rotations.
+- Hold the passenger-facing stop slot for a whole vehicle-AI tick so a boarding bus can actually complete and leave.
+- Release any concurrent boarding session that exceeds the configured dwell limit, whatever state it is in.
+- Let a following bus finish boarding on its own passenger and dwell gates. A follower is held short of the native stop marker, so the native lifecycle could never complete it and it previously sat at the stop until the dwell limit expired.
+- Let a following bus accept passengers from the moment it is admitted rather than only from its first completion attempt.
+- Repair cities saved with an earlier version. Stops still reserved for a bus that has gone, and buses left unable to accept passengers or depart, are cleared automatically each time a city loads, and on demand from a new Options button.
+- Leave a lone bus at a stop entirely to the game. Concurrent boarding now engages only when two or more buses are actually at the same stop, which is the situation it exists to resolve. Previously every bus at every stop was taken over and held, replacing a short native dwell with a longer managed one and inflating journey times across every line.
+- Close a boarding bus's doors before requiring every passenger to be aboard. At a busy stop the arrival stream never stops on its own, so the bus kept accepting new boarders, always had someone still climbing aboard, and could never depart until its dwell limit expired.
+- Leave waiting cims where the game puts them. Displacing them along the boarding zone had no measured benefit and coincided with cims abandoning the wait before their bus arrived.
+- Stop stranding cims halfway aboard. Rotating the shared stop slot away from a bus while a cim was still climbing into it left that cim unable to finish and its bus unable to depart until the dwell limit expired. The slot now waits for boarding cims to finish before it moves on.
+- Let each concurrently boarding bus finish on its own passenger exchange instead of waiting for the whole shared stop queue to fall quiet, which at a busy stop could never happen and held the bus until the dwell limit.
+- Recompute public transport attractiveness from the true vanilla baseline when the slider changes after new lines are loaded.
+- Log active concurrent-boarding session counts and ages periodically to make this class of problem visible in the game log.
 
 ## 1.4.2 - 2026-07-26
 

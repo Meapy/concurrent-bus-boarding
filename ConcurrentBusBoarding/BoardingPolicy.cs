@@ -9,10 +9,26 @@ namespace ConcurrentBusBoarding
         internal const float BoardingSpeedTolerance = 1f;
         internal const float BoardingHeadingTolerance = 0.9f;
         internal const float PhysicalLaneCaptureDistance = 40f;
+        // How far back along the zone waiting cims are spread from the stop marker. This was briefly
+        // also used to reject distant buses from admission, on the theory that they were unboardable.
+        // Measurement disproved that - concurrent buses board and unload normally at zone distances -
+        // so the admission gate was reverted and this now bounds only the waiting band.
+        internal const float PassengerReachDistance = 20f;
         internal const float MinimumCustomZoneLength = 6f;
         internal const float MaximumCustomZoneLength = 200f;
         internal const uint ResidentUpdateFrames = 16u;
         internal const uint ManagedBoardingTimeoutFrames = 1800u;
+        // How long the native boarding lifecycle is given to complete a session on its own before
+        // the managed gates take over. Comfortably longer than a normal native dwell and far below
+        // ManagedBoardingTimeoutFrames, so the deadline stays a last resort rather than the norm.
+        internal const uint NativeCompletionGraceFrames = 256u;
+        // Consecutive selected completion attempts with no change to this bus's passenger count
+        // before its share of the exchange counts as finished.
+        internal const byte IdleAttemptsBeforeDeparture = 3;
+        // Longest a session keeps admitting new passengers before it closes its doors. At a busy
+        // stop the arrival stream never stops on its own, so without a cap the bus keeps accepting
+        // boarders, always has someone mid-transition, and can never satisfy the readiness gate.
+        internal const uint BoardingWindowFrames = 512u;
         private const double SimulationFramesPerMinute = 182.044444444444;
 
         internal static bool IsPullInLane(bool secondaryLane, bool splitsFromRoad, bool mergesIntoRoad,
@@ -76,6 +92,23 @@ namespace ConcurrentBusBoarding
             return !selectedOnly || selected || editing;
         }
 
+        // Waiting cims spread along the zone so they can reach concurrent buses, but never past the
+        // band a bus is allowed to be admitted in. Otherwise the spread just moves the unreachable
+        // problem onto the cims instead of the buses.
+        internal static void LimitWaitingBoundsToReach(float start, float end, float laneLength,
+            int direction, float reachDistance, out float limitedStart, out float limitedEnd)
+        {
+            limitedStart = start;
+            limitedEnd = end;
+            if (laneLength <= 0f)
+                return;
+            float range = reachDistance / laneLength;
+            if (direction >= 0)
+                limitedStart = end - range > start ? end - range : start;
+            else
+                limitedEnd = start + range < end ? start + range : end;
+        }
+
         internal static float WaitingPosition(float start, float end, int direction, float unit)
         {
             float distanceFromFront = Clamp(unit, 0f, 1f);
@@ -124,6 +157,15 @@ namespace ConcurrentBusBoarding
             return count <= 1 ? 0 : (int)((turn + salt) % (uint)count);
         }
 
+        // The mod exists to resolve contention between buses at one stop. With a single bus there is
+        // nothing to resolve, so taking it over only replaces a short native dwell with a longer
+        // managed one. Admitting the lead unconditionally did exactly that at every stop on every
+        // line, inflating round-trip times citywide.
+        internal static bool ShouldEngageConcurrentBoarding(int busesAtStop)
+        {
+            return busesAtStop > 1;
+        }
+
         internal static bool CanBeginSyntheticBoarding(int activeBusCount)
         {
             return activeBusCount > 0;
@@ -134,15 +176,32 @@ namespace ConcurrentBusBoarding
             return canAdmit && !boarding;
         }
 
-        internal static uint PassengerSelectionTurn(uint simulationFrame)
+        // Departure is two-phase, as a real stop is. Phase one accepts passengers. Phase two closes
+        // the doors so the cims already climbing aboard can finish, because a bus that never stops
+        // admitting new boarders never reaches "all passengers ready".
+        internal static bool ShouldCloseDoors(bool doorsClosing, uint frame, uint admittedFrame,
+            uint windowFrames, bool exchangeSettled)
         {
-            return simulationFrame / ResidentUpdateFrames;
+            if (doorsClosing)
+                return false;
+            if (exchangeSettled)
+                return true;
+            return admittedFrame != 0u && frame >= admittedFrame + windowFrames;
+        }
+
+        // Once the doors are shut the only remaining question is whether the in-flight boarders
+        // have finished. The dwell and waiting-distance gates have already been satisfied by
+        // definition, so re-testing them here would just reintroduce the stall.
+        internal static bool CanDepartAfterDoorsClosed(bool passengersReady, bool timedOut)
+        {
+            return passengersReady || timedOut;
         }
 
         internal static bool CanFinishBoarding(uint frame, uint departureFrame, float maxBoardingDistance,
-            bool passengersReady, bool timedOut)
+            bool passengersReady, bool timedOut, bool exchangeSettled)
         {
-            return frame >= departureFrame && maxBoardingDistance == float.MaxValue &&
+            return frame >= departureFrame &&
+                (maxBoardingDistance == float.MaxValue || exchangeSettled) &&
                 (passengersReady || timedOut);
         }
 
@@ -159,14 +218,35 @@ namespace ConcurrentBusBoarding
                 frame - departureFrame >= timeoutFrames;
         }
 
-        internal static bool ShouldExposeBoardingToVehicleAi(bool usesNativeBoarding, bool selected)
+        // A native boarding session must stay continuously visible to the car AI. Clearing the flag
+        // between admission and completion makes the AI re-enter StartBoarding, which re-arms
+        // m_DepartureFrame and prevents the bus from ever departing. Concurrency is expressed only
+        // through the rotating passenger-facing BoardingVehicle slot.
+        internal static bool ShouldExposeBoardingToVehicleAi(bool usesNativeBoarding)
         {
-            return usesNativeBoarding && selected;
+            return usesNativeBoarding;
         }
 
-        internal static bool ShouldCompleteManagedBoarding(bool usesNativeBoarding, bool selected)
+        // Unconditional session deadline. This deliberately does not read m_DepartureFrame, because
+        // that field is the one a re-entered native StartBoarding corrupts.
+        internal static bool HasSessionExpired(uint frame, uint admittedFrame, uint timeoutFrames)
         {
-            return !usesNativeBoarding && selected;
+            return admittedFrame != 0u && frame > admittedFrame && frame - admittedFrame >= timeoutFrames;
+        }
+
+        // A follower is held stationary short of its native path end, and installed IL shows native
+        // StopBoarding is only reached after PathEndReached. So for a follower the native lifecycle
+        // can never complete, whatever its flags say. Give the native path a grace window - long
+        // enough for a genuine lead bus that did reach its endpoint - then complete the session on
+        // the managed passenger and dwell gates instead of letting it run to the dwell deadline.
+        internal static bool ShouldCompleteManagedBoarding(bool usesNativeBoarding, bool selected,
+            uint frame, uint admittedFrame, uint graceFrames)
+        {
+            if (!selected)
+                return false;
+            if (!usesNativeBoarding)
+                return true;
+            return admittedFrame != 0u && frame >= admittedFrame + graceFrames;
         }
 
         internal static bool ShouldAdoptNativeBoarding(

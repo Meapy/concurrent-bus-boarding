@@ -56,6 +56,9 @@ namespace ConcurrentBusBoarding
             if (m_Initialized && attractiveness == m_AppliedAttractiveness)
                 return;
 
+            // Restore first, so a prefab that registered after an earlier scaling pass is never
+            // captured at its already-scaled value and recorded as the baseline.
+            RestoreOriginalCosts();
             CaptureOriginalCosts();
             if (m_OriginalCosts.Count == 0)
             {
@@ -82,16 +85,23 @@ namespace ConcurrentBusBoarding
         {
             if (m_Initialized && m_AppliedAttractiveness != 100)
             {
-                foreach (KeyValuePair<Entity, PathfindTransportData> entry in m_OriginalCosts)
-                {
-                    if (EntityManager.Exists(entry.Key) &&
-                        EntityManager.HasComponent<PathfindTransportData>(entry.Key))
-                        EntityManager.SetComponentData(entry.Key, entry.Value);
-                }
+                RestoreOriginalCosts();
                 RefreshRoutes();
             }
             m_OriginalCosts.Clear();
             base.OnDestroy();
+        }
+
+        private void RestoreOriginalCosts()
+        {
+            if (m_AppliedAttractiveness == 100)
+                return;
+            foreach (KeyValuePair<Entity, PathfindTransportData> entry in m_OriginalCosts)
+            {
+                if (EntityManager.Exists(entry.Key) &&
+                    EntityManager.HasComponent<PathfindTransportData>(entry.Key))
+                    EntityManager.SetComponentData(entry.Key, entry.Value);
+            }
         }
 
         private void CaptureOriginalCosts()

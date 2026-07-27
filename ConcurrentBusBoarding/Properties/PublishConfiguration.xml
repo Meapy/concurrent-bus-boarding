@@ -18,6 +18,7 @@ FEATURES
 - Options includes a confirmed action that resets every customized zone in the current city.
 - Boarding-zone overlays show only for the selected stop by default; this can be changed in Options.
 - Options includes a 50-200% public transport attractiveness slider. The 100% default preserves vanilla passenger-route costs; higher values make passenger public transport more attractive.
+- Options includes a confirmed action that clears stuck boarding state from a city saved with an earlier version.
 
 HOW TO EDIT A STOP
 
@@ -34,9 +35,9 @@ Boarding behavior changes only passenger buses. The optional attractiveness sett
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.4.2" />
+	<ModVersion Value="1.5.0" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Fixes the public transport attractiveness slider so it waits for native passenger pathfind data during simulation, applies the saved value reliably, refreshes route costs, and reports its active cost profiles in the mod log." />
+	<ChangeLog Value="Fixes buses becoming stuck at a stop until their dwell limit expired, which inflated journey times across every line. Concurrent boarding now engages only when two or more buses are actually at the same stop, so a bus alone at its stop is left entirely to the game. A boarding bus now closes its doors before waiting for the last passengers, and cims are no longer stranded halfway aboard by the shared stop slot. Adds an Options action, also run automatically on load, that clears stuck boarding state from cities saved with an earlier version." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />
