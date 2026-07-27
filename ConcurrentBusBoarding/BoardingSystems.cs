@@ -55,6 +55,18 @@ namespace ConcurrentBusBoarding
         internal Entity Route;
         internal byte SelectedForVehicleAi;
         internal byte UsesNativeBoarding;
+        // Frame the session was admitted. Drives the unconditional dwell deadline.
+        internal uint AdmittedFrame;
+        // Holds the passenger-facing stop slot for a whole 16-frame tick, in phase with the car AI.
+        internal byte SelectedForPassengers;
+        // This bus's own boarding progress. When the count stops changing across consecutive
+        // completion attempts, its share of the passenger exchange is finished.
+        internal int LastPassengerCount;
+        internal byte IdleAttempts;
+        // Diagnostic: set once the resident AI has reported any waiting cim near this bus.
+        internal byte SawWaitingPassenger;
+        // Phase two of departure: no new passengers admitted, waiting for in-flight boarders.
+        internal byte DoorsClosing;
     }
 
     internal struct ConcurrentRouteHandoff : IComponentData
@@ -85,6 +97,9 @@ namespace ConcurrentBusBoarding
         private SimulationSystem m_SimulationSystem;
         private PrefabSystem m_PrefabSystem;
         private uint m_Turn;
+        private uint m_LastReportFrame;
+        private int m_SingleBusVisits;
+        private int m_ContendedVisits;
 
         public override int GetUpdateInterval(SystemUpdatePhase phase) => 16;
         public override int GetUpdateOffset(SystemUpdatePhase phase) => 1;
@@ -176,6 +191,7 @@ namespace ConcurrentBusBoarding
                 float occupiedLength = 0f;
                 BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
 
+                int contenders = 0;
                 foreach (Entity bus in entry.Value)
                 {
                     if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus))
@@ -183,7 +199,21 @@ namespace ConcurrentBusBoarding
                         activeBuses.Add(bus);
                         occupiedLength += BoardingHelpers.GetVehicleLength(EntityManager, bus);
                     }
+                    if (hasZone && BoardingHelpers.IsCloseToStop(EntityManager, bus, zone))
+                        contenders++;
                 }
+
+                // With one bus at the stop there is no contention to resolve, so leave it entirely
+                // to native AI: no session, no hold, no slot override. Sessions already running are
+                // not disturbed, so a departing partner cannot cut another bus's boarding short.
+                bool engage = BoardingPolicy.ShouldEngageConcurrentBoarding(contenders);
+                if (!engage && activeBuses.Count == 0)
+                {
+                    m_SingleBusVisits++;
+                    continue;
+                }
+                if (engage)
+                    m_ContendedVisits++;
 
                 foreach (Entity bus in entry.Value)
                 {
@@ -199,7 +229,8 @@ namespace ConcurrentBusBoarding
                     float candidateLength = BoardingHelpers.GetVehicleLength(EntityManager, bus);
                     if (!hasZone)
                         continue;
-                    if (!BoardingPolicy.CanAdmit(zone.IsCustom, pullIn, activeBuses.Count, occupiedLength,
+                    if (!engage ||
+                        !BoardingPolicy.CanAdmit(zone.IsCustom, pullIn, activeBuses.Count, occupiedLength,
                         candidateLength, BoardingHelpers.GetZoneLength(zone), closeToStop))
                         continue;
 
@@ -207,7 +238,9 @@ namespace ConcurrentBusBoarding
                     {
                         Stop = stop,
                         Route = GetCurrentRoute(bus),
-                        UsesNativeBoarding = 1
+                        UsesNativeBoarding = 1,
+                        AdmittedFrame = m_SimulationSystem.frameIndex,
+                        LastPassengerCount = BoardingHelpers.GetPassengerCount(EntityManager, bus)
                     });
                     activeBuses.Add(bus);
                     occupiedLength += candidateLength;
@@ -223,7 +256,7 @@ namespace ConcurrentBusBoarding
                     if (!closeToStop)
                         continue;
                     float candidateLength = BoardingHelpers.GetVehicleLength(EntityManager, bus);
-                    bool canAdmit = BoardingPolicy.CanAdmit(
+                    bool canAdmit = engage && BoardingPolicy.CanAdmit(
                         zone.IsCustom, pullIn, activeBuses.Count, occupiedLength,
                         candidateLength, BoardingHelpers.GetZoneLength(zone), true);
                     if (!canAdmit)
@@ -251,7 +284,9 @@ namespace ConcurrentBusBoarding
                     EntityManager.AddComponentData(bus, new ConcurrentBoardingActive
                     {
                         Stop = stop,
-                        Route = GetCurrentRoute(bus)
+                        Route = GetCurrentRoute(bus),
+                        AdmittedFrame = m_SimulationSystem.frameIndex,
+                        LastPassengerCount = BoardingHelpers.GetPassengerCount(EntityManager, bus)
                     });
                     CrashBreadcrumbs.Write($"boarding-begin active-added bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
                     activeBuses.Add(bus);
@@ -279,6 +314,15 @@ namespace ConcurrentBusBoarding
             }
 
             m_Turn++;
+
+            uint frame = m_SimulationSystem.frameIndex;
+            if (frame - m_LastReportFrame >= 4096u)
+            {
+                m_LastReportFrame = frame;
+                Mod.Log.Info(
+                    $"Concurrent boarding engagement: contended stop visits={m_ContendedVisits}, " +
+                    $"single-bus visits left to native AI={m_SingleBusVisits}.");
+            }
         }
 
         private void BeginBoarding(Entity bus)
@@ -286,8 +330,10 @@ namespace ConcurrentBusBoarding
             VehiclePublicTransport transport = EntityManager.GetComponentData<VehiclePublicTransport>(bus);
             transport.m_State &= ~(PublicTransportFlags.Testing | PublicTransportFlags.RequireStop);
             transport.m_State |= PublicTransportFlags.EnRoute | PublicTransportFlags.Boarding;
-            transport.m_DepartureFrame = math.max(transport.m_DepartureFrame, m_SimulationSystem.frameIndex + 64u);
-            transport.m_MaxBoardingDistance = 0f;
+            // Match native StartBoarding: open the dwell window from this frame and admit every
+            // waiting passenger. TryCompleteBoarding then ratchets the distance down as they board.
+            transport.m_DepartureFrame = m_SimulationSystem.frameIndex + 64u;
+            transport.m_MaxBoardingDistance = float.MaxValue;
             transport.m_MinWaitingDistance = float.MaxValue;
             EntityManager.SetComponentData(bus, transport);
         }
@@ -298,7 +344,7 @@ namespace ConcurrentBusBoarding
             ConcurrentBoardingActive active = EntityManager.GetComponentData<ConcurrentBoardingActive>(bus);
             transport.m_State &= ~(PublicTransportFlags.Testing | PublicTransportFlags.RequireStop);
             transport.m_State |= PublicTransportFlags.EnRoute;
-            if (BoardingPolicy.ShouldExposeBoardingToVehicleAi(active.UsesNativeBoarding != 0, selected))
+            if (BoardingPolicy.ShouldExposeBoardingToVehicleAi(active.UsesNativeBoarding != 0))
                 transport.m_State |= PublicTransportFlags.Boarding;
             else
                 transport.m_State &= ~PublicTransportFlags.Boarding;
@@ -308,7 +354,15 @@ namespace ConcurrentBusBoarding
                 Stop = stop,
                 Route = active.Route != Entity.Null ? active.Route : GetCurrentRoute(bus),
                 SelectedForVehicleAi = selected ? (byte)1 : (byte)0,
-                UsesNativeBoarding = active.UsesNativeBoarding
+                UsesNativeBoarding = active.UsesNativeBoarding,
+                AdmittedFrame = active.AdmittedFrame != 0u
+                    ? active.AdmittedFrame
+                    : m_SimulationSystem.frameIndex,
+                SelectedForPassengers = selected ? (byte)1 : (byte)0,
+                LastPassengerCount = active.LastPassengerCount,
+                IdleAttempts = active.IdleAttempts,
+                SawWaitingPassenger = active.SawWaitingPassenger,
+                DoorsClosing = active.DoorsClosing
             });
         }
 
@@ -471,8 +525,27 @@ namespace ConcurrentBusBoarding
     [UpdateBefore(typeof(ResidentAISystem))]
     public partial class PassengerDistributionSystem : GameSystemBase
     {
+        private const uint HealthReportFrames = 4096u;
+
         private EntityQuery m_Buses;
         private SimulationSystem m_SimulationSystem;
+        private uint m_LastReportFrame;
+        private int m_ExpiredSessions;
+        private int m_NativeCompletions;
+        private int m_ManagedCompletions;
+        private int m_CompletionAttempts;
+        private int m_GateDwell;
+        private int m_GateDistance;
+        private int m_GatePassengers;
+        private int m_GateSettled;
+        private int m_BlockedByWaypoint;
+        private int m_StickySlotHolds;
+        private int m_SessionsThatSawAWaitingCim;
+        private int m_PassengersBoarded;
+        private int m_PassengersAlighted;
+        private int m_UnreadyPassengers;
+        private int m_UnreadyForOtherVehicle;
+        private int m_DoorsClosed;
 
         [Preserve]
         protected override void OnCreate()
@@ -499,6 +572,19 @@ namespace ConcurrentBusBoarding
                 foreach (Entity bus in buses)
                 {
                     ConcurrentBoardingActive active = EntityManager.GetComponentData<ConcurrentBoardingActive>(bus);
+                    // Unconditional deadline. Whatever the session state, a bus may never be held
+                    // beyond the configured dwell; otherwise a single stuck session removes a
+                    // vehicle from its line permanently and the line's service decays.
+                    if (BoardingPolicy.HasSessionExpired(m_SimulationSystem.frameIndex, active.AdmittedFrame,
+                            Mod.GetManagedBoardingTimeoutFrames()))
+                    {
+                        CrashBreadcrumbs.Write($"session-expired bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(active.Stop)}");
+                        m_ExpiredSessions++;
+                        TryAdvanceToNextWaypoint(bus);
+                        BeginRouteHandoff(bus, active.Route);
+                        BoardingHelpers.ForceReleaseConcurrentBoarding(EntityManager, bus, active);
+                        continue;
+                    }
                     if (!BoardingHelpers.CanManageRouteContext(EntityManager, bus, active.Route))
                     {
                         CrashBreadcrumbs.Write($"active-removed invalid-route bus={CrashBreadcrumbs.Id(bus)} route={CrashBreadcrumbs.Id(active.Route)}");
@@ -539,15 +625,18 @@ namespace ConcurrentBusBoarding
                             !boardingAfterVehicleAi)
                         {
                             CrashBreadcrumbs.Write($"active-complete native bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+                            m_NativeCompletions++;
                             BeginRouteHandoff(bus, active.Route);
                             BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                             continue;
                         }
                         if (BoardingPolicy.ShouldCompleteManagedBoarding(
-                                active.UsesNativeBoarding != 0, true) &&
-                            TryCompleteBoarding(bus, stop, ref transport))
+                                active.UsesNativeBoarding != 0, true, m_SimulationSystem.frameIndex,
+                                active.AdmittedFrame, BoardingPolicy.NativeCompletionGraceFrames) &&
+                            TryCompleteBoarding(bus, stop, ref transport, ref active))
                         {
                             CrashBreadcrumbs.Write($"active-complete follower bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+                            m_ManagedCompletions++;
                             BeginRouteHandoff(bus, active.Route);
                             BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                             continue;
@@ -570,11 +659,76 @@ namespace ConcurrentBusBoarding
                 BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
                 if (slot.m_Vehicle != Entity.Null && !BoardingHelpers.IsBus(EntityManager, slot.m_Vehicle))
                     continue;
-                uint turn = BoardingPolicy.PassengerSelectionTurn(m_SimulationSystem.frameIndex);
-                slot.m_Vehicle = entry.Value[
-                    BoardingPolicy.RotationIndex(entry.Value.Count, turn, (uint)stop.Index)];
+
+                // Never rotate away from a bus that still has a cim climbing aboard. That cim holds
+                // CurrentVehicle without the Ready flag and can only finish while the slot points at
+                // its bus; rotating strands it, and an unready passenger blocks its bus from ever
+                // departing. The dwell deadline bounds this hold, so it cannot starve the stop.
+                if (slot.m_Vehicle != Entity.Null &&
+                    entry.Value.Contains(slot.m_Vehicle) &&
+                    !BoardingHelpers.ArePassengersReady(EntityManager, slot.m_Vehicle))
+                {
+                    m_StickySlotHolds++;
+                    continue;
+                }
+
+                // The winner is chosen once per 16-frame tick by ConcurrentBoardingSystem, in the
+                // same pass that runs before the car AI. Holding the slot for that whole tick is
+                // what lets native StopBoarding's BoardingVehicle.m_Vehicle test actually succeed;
+                // recomputing the rotation here from frameIndex drifts out of phase with the AI.
+                Entity selected = entry.Value[0];
+                foreach (Entity bus in entry.Value)
+                {
+                    if (EntityManager.GetComponentData<ConcurrentBoardingActive>(bus).SelectedForPassengers != 0)
+                    {
+                        selected = bus;
+                        break;
+                    }
+                }
+                if (slot.m_Vehicle == selected)
+                    continue;
+                slot.m_Vehicle = selected;
                 EntityManager.SetComponentData(stop, slot);
             }
+
+            ReportSessionHealth();
+        }
+
+        // Bounded ridership-decay telemetry: if the active session count or the oldest session age
+        // climbs monotonically across a session, buses are being latched and never released.
+        private void ReportSessionHealth()
+        {
+            uint frame = m_SimulationSystem.frameIndex;
+            if (frame - m_LastReportFrame < HealthReportFrames)
+                return;
+            m_LastReportFrame = frame;
+
+            int active = m_Buses.CalculateEntityCount();
+            uint oldest = 0u;
+            using (NativeArray<Entity> buses = m_Buses.ToEntityArray(Allocator.Temp))
+            {
+                foreach (Entity bus in buses)
+                {
+                    uint admitted = EntityManager.GetComponentData<ConcurrentBoardingActive>(bus).AdmittedFrame;
+                    if (admitted != 0u && frame > admitted && frame - admitted > oldest)
+                        oldest = frame - admitted;
+                }
+            }
+            int ended = m_NativeCompletions + m_ManagedCompletions + m_ExpiredSessions;
+            Mod.Log.Info(
+                $"Concurrent boarding health: {active} active, oldest {oldest} frames; " +
+                $"ended={ended} (native={m_NativeCompletions} managed={m_ManagedCompletions} " +
+                $"expired={m_ExpiredSessions}); sessions that ever saw a waiting cim=" +
+                $"{m_SessionsThatSawAWaitingCim}; boarded={m_PassengersBoarded} " +
+                $"alighted={m_PassengersAlighted}; sticky={m_StickySlotHolds}.");
+            // Gates are independent: one attempt can fail several at once. Percentages are of
+            // attempts, not of each other.
+            Mod.Log.Info(
+                $"Concurrent boarding gates: attempts={m_CompletionAttempts} dwell={m_GateDwell} " +
+                $"distance={m_GateDistance} passengers={m_GatePassengers} settled={m_GateSettled} " +
+                $"waypoint={m_BlockedByWaypoint}; doors closed={m_DoorsClosed}; " +
+                $"unready passengers={m_UnreadyPassengers} " +
+                $"of which pointing at another vehicle={m_UnreadyForOtherVehicle}.");
         }
 
         private void BeginRouteHandoff(Entity bus, Entity route)
@@ -603,23 +757,102 @@ namespace ConcurrentBusBoarding
             EntityManager.AddComponentData(bus, new CurrentRoute(active.Route));
         }
 
-        private bool TryCompleteBoarding(Entity bus, Entity stop, ref VehiclePublicTransport transport)
+        private bool TryCompleteBoarding(Entity bus, Entity stop, ref VehiclePublicTransport transport,
+            ref ConcurrentBoardingActive active)
         {
             uint frame = m_SimulationSystem.frameIndex;
             bool timedOut = BoardingPolicy.HasBoardingTimedOut(
                 frame, transport.m_DepartureFrame, Mod.GetManagedBoardingTimeoutFrames());
             if (timedOut)
                 CrashBreadcrumbs.Write($"boarding-timeout follower bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
+
+            // Measured before the ratchet overwrites it. This is the un-masked version of the
+            // question the old distance counter was supposed to answer: did the resident AI ever
+            // find a waiting cim near this bus at all?
+            if (transport.m_MinWaitingDistance != float.MaxValue && active.SawWaitingPassenger == 0)
+            {
+                active.SawWaitingPassenger = 1;
+                m_SessionsThatSawAWaitingCim++;
+            }
+
             transport.m_MaxBoardingDistance = transport.m_MinWaitingDistance == float.MaxValue ||
                 transport.m_MinWaitingDistance == 0f || timedOut
                 ? float.MaxValue
                 : transport.m_MinWaitingDistance + 1f;
             transport.m_MinWaitingDistance = float.MaxValue;
 
-            if (!BoardingPolicy.CanFinishBoarding(frame, transport.m_DepartureFrame,
-                    transport.m_MaxBoardingDistance, ArePassengersReady(bus), timedOut) ||
-                !TryAdvanceToNextWaypoint(bus))
+            // The native waiting-distance ratchet assumes one bus serves the whole queue. Here the
+            // passenger slot rotates between concurrent buses, so a busy stop can keep resupplying
+            // a nearby waiting cim and the ratchet never closes. Track this bus's own exchange
+            // instead: once its passenger count stops changing across consecutive attempts, its
+            // share of the boarding is finished whatever the queue is still doing.
+            int passengers = BoardingHelpers.GetPassengerCount(EntityManager, bus);
+            if (passengers != active.LastPassengerCount)
+            {
+                int delta = passengers - active.LastPassengerCount;
+                if (delta > 0)
+                    m_PassengersBoarded += delta;
+                else
+                    m_PassengersAlighted -= delta;
+                active.LastPassengerCount = passengers;
+                active.IdleAttempts = 0;
+            }
+            else if (active.IdleAttempts < byte.MaxValue)
+            {
+                active.IdleAttempts++;
+            }
+            bool exchangeSettled = active.IdleAttempts >= BoardingPolicy.IdleAttemptsBeforeDeparture;
+
+            bool passengersReady = ArePassengersReady(bus);
+
+            // Every gate measured independently on every attempt. The previous if/else chain only
+            // ever reported the first failing gate, and exchangeSettled silently masked the
+            // distance gate entirely, which is what made the round 5 reading worthless.
+            m_CompletionAttempts++;
+            if (frame < transport.m_DepartureFrame)
+                m_GateDwell++;
+            if (transport.m_MaxBoardingDistance != float.MaxValue)
+                m_GateDistance++;
+            if (!passengersReady)
+            {
+                m_GatePassengers++;
+                BoardingHelpers.CountUnreadyPassengers(EntityManager, bus,
+                    out int unready, out int unreadyForOtherVehicle);
+                m_UnreadyPassengers += unready;
+                m_UnreadyForOtherVehicle += unreadyForOtherVehicle;
+            }
+            if (exchangeSettled)
+                m_GateSettled++;
+
+            // Phase two: shut the doors. Measurement showed m_MaxBoardingDistance is permanently
+            // float.MaxValue (distance gate never fires) because m_MinWaitingDistance is never
+            // finite, so the native ratchet never closes the window. The bus therefore kept
+            // admitting boarders, always had cims mid-transition, and never satisfied the
+            // readiness gate - which is why two thirds of sessions ran to the dwell deadline.
+            if (BoardingPolicy.ShouldCloseDoors(active.DoorsClosing != 0, frame, active.AdmittedFrame,
+                    BoardingPolicy.BoardingWindowFrames, exchangeSettled))
+            {
+                active.DoorsClosing = 1;
+                m_DoorsClosed++;
+            }
+
+            if (active.DoorsClosing != 0)
+            {
+                // Keep the window shut so no new cim starts boarding while the last ones finish.
+                transport.m_MaxBoardingDistance = 0f;
+                if (!BoardingPolicy.CanDepartAfterDoorsClosed(passengersReady, timedOut))
+                    return false;
+            }
+            else if (!BoardingPolicy.CanFinishBoarding(frame, transport.m_DepartureFrame,
+                    transport.m_MaxBoardingDistance, passengersReady, timedOut, exchangeSettled))
+            {
                 return false;
+            }
+            if (!TryAdvanceToNextWaypoint(bus))
+            {
+                m_BlockedByWaypoint++;
+                return false;
+            }
 
             transport.m_State &= ~(PublicTransportFlags.Arriving | PublicTransportFlags.Boarding |
                 PublicTransportFlags.Testing | PublicTransportFlags.RequireStop);
@@ -637,17 +870,7 @@ namespace ConcurrentBusBoarding
 
         private bool ArePassengersReady(Entity bus)
         {
-            if (!EntityManager.HasBuffer<Passenger>(bus))
-                return true;
-            DynamicBuffer<Passenger> passengers = EntityManager.GetBuffer<Passenger>(bus, true);
-            foreach (Passenger passenger in passengers)
-            {
-                if (EntityManager.HasComponent<CurrentVehicle>(passenger.m_Passenger) &&
-                    (EntityManager.GetComponentData<CurrentVehicle>(passenger.m_Passenger).m_Flags &
-                        CreatureVehicleFlags.Ready) == 0)
-                    return false;
-            }
-            return true;
+            return BoardingHelpers.ArePassengersReady(EntityManager, bus);
         }
 
         private bool TryAdvanceToNextWaypoint(Entity bus)
@@ -790,9 +1013,12 @@ namespace ConcurrentBusBoarding
                     continue;
 
                 float2 bounds = BoardingHelpers.GetZoneBounds(zone);
+                BoardingPolicy.LimitWaitingBoundsToReach(bounds.x, bounds.y, zone.Curve.m_Length,
+                    zone.Direction, BoardingPolicy.PassengerReachDistance,
+                    out float reachStart, out float reachEnd);
                 uint hash = math.hash(new uint2((uint)entity.Index, (uint)entity.Version));
                 float unit = (hash & 65535u) / 65535f;
-                float progress = BoardingPolicy.WaitingPosition(bounds.x, bounds.y, zone.Direction, unit);
+                float progress = BoardingPolicy.WaitingPosition(reachStart, reachEnd, zone.Direction, unit);
                 float3 stopOnRoad = MathUtils.Position(zone.Curve.m_Bezier, zone.CurvePosition);
                 float3 waitingOnRoad = MathUtils.Position(zone.Curve.m_Bezier, progress);
                 Transform stopTransform = EntityManager.GetComponentData<Transform>(stop);
@@ -849,6 +1075,51 @@ namespace ConcurrentBusBoarding
 
     internal static class BoardingHelpers
     {
+        // Diagnostic counterpart to ArePassengersReady. Reports how many passengers in this bus's
+        // buffer are unready, and how many of those hold a CurrentVehicle pointing at some other
+        // vehicle. ArePassengersReady does not check vehicle identity, so a passenger whose
+        // CurrentVehicle is not this bus would block departure indefinitely.
+        internal static void CountUnreadyPassengers(EntityManager entityManager, Entity bus,
+            out int unready, out int unreadyForOtherVehicle)
+        {
+            unready = 0;
+            unreadyForOtherVehicle = 0;
+            if (bus == Entity.Null || !entityManager.Exists(bus) ||
+                !entityManager.HasBuffer<Passenger>(bus))
+                return;
+            DynamicBuffer<Passenger> passengers = entityManager.GetBuffer<Passenger>(bus, true);
+            foreach (Passenger passenger in passengers)
+            {
+                if (!entityManager.HasComponent<CurrentVehicle>(passenger.m_Passenger))
+                    continue;
+                CurrentVehicle current = entityManager.GetComponentData<CurrentVehicle>(passenger.m_Passenger);
+                if ((current.m_Flags & CreatureVehicleFlags.Ready) != 0)
+                    continue;
+                unready++;
+                if (current.m_Vehicle != bus)
+                    unreadyForOtherVehicle++;
+            }
+        }
+
+        // A passenger that holds CurrentVehicle without the Ready flag is mid-transition into that
+        // bus. It blocks departure, and it can only finish while the stop's BoardingVehicle slot
+        // still points at the bus it is climbing into.
+        internal static bool ArePassengersReady(EntityManager entityManager, Entity bus)
+        {
+            if (bus == Entity.Null || !entityManager.Exists(bus) ||
+                !entityManager.HasBuffer<Passenger>(bus))
+                return true;
+            DynamicBuffer<Passenger> passengers = entityManager.GetBuffer<Passenger>(bus, true);
+            foreach (Passenger passenger in passengers)
+            {
+                if (entityManager.HasComponent<CurrentVehicle>(passenger.m_Passenger) &&
+                    (entityManager.GetComponentData<CurrentVehicle>(passenger.m_Passenger).m_Flags &
+                        CreatureVehicleFlags.Ready) == 0)
+                    return false;
+            }
+            return true;
+        }
+
         internal static bool CanManageRouteContext(EntityManager entityManager, Entity bus, Entity route)
         {
             bool validRoute = bus != Entity.Null && entityManager.Exists(bus) &&
@@ -898,6 +1169,48 @@ namespace ConcurrentBusBoarding
             DynamicBuffer<RouteWaypoint> waypoints = entityManager.GetBuffer<RouteWaypoint>(route, true);
             return data.m_Index >= 0 && data.m_Index < waypoints.Length &&
                 waypoints[data.m_Index].m_Waypoint == waypoint;
+        }
+
+        // Deadline escape hatch. Unlike ReleaseConcurrentBoarding this also clears a native session's
+        // boarding state, because an expired native session is exactly the case where the car AI has
+        // stopped making progress and must be handed a clean, movable vehicle.
+        internal static void ForceReleaseConcurrentBoarding(
+            EntityManager entityManager, Entity bus, ConcurrentBoardingActive active)
+        {
+            if (bus != Entity.Null && entityManager.Exists(bus) &&
+                entityManager.HasComponent<VehiclePublicTransport>(bus))
+            {
+                VehiclePublicTransport transport = entityManager.GetComponentData<VehiclePublicTransport>(bus);
+                transport.m_State &= ~(PublicTransportFlags.Boarding | PublicTransportFlags.Testing |
+                    PublicTransportFlags.RequireStop | PublicTransportFlags.Arriving);
+                transport.m_State |= PublicTransportFlags.EnRoute;
+                transport.m_MaxBoardingDistance = float.MaxValue;
+                transport.m_MinWaitingDistance = float.MaxValue;
+                entityManager.SetComponentData(bus, transport);
+            }
+
+            if (active.Stop != Entity.Null && entityManager.Exists(active.Stop) &&
+                entityManager.HasComponent<BoardingVehicle>(active.Stop))
+            {
+                BoardingVehicle slot = entityManager.GetComponentData<BoardingVehicle>(active.Stop);
+                bool changed = false;
+                if (slot.m_Vehicle == bus)
+                {
+                    slot.m_Vehicle = Entity.Null;
+                    changed = true;
+                }
+                if (slot.m_Testing == bus)
+                {
+                    slot.m_Testing = Entity.Null;
+                    changed = true;
+                }
+                if (changed)
+                    entityManager.SetComponentData(active.Stop, slot);
+            }
+
+            if (bus != Entity.Null && entityManager.Exists(bus) &&
+                entityManager.HasComponent<ConcurrentBoardingActive>(bus))
+                entityManager.RemoveComponent<ConcurrentBoardingActive>(bus);
         }
 
         internal static void ReleaseConcurrentBoarding(
@@ -1445,6 +1758,13 @@ namespace ConcurrentBusBoarding
                 entityManager.HasComponent<BoardingVehicle>(stop);
         }
 
+        internal static int GetPassengerCount(EntityManager entityManager, Entity vehicle)
+        {
+            return entityManager.HasBuffer<Passenger>(vehicle)
+                ? entityManager.GetBuffer<Passenger>(vehicle, true).Length
+                : 0;
+        }
+
         internal static float GetVehicleLength(EntityManager entityManager, Entity vehicle)
         {
             float length = 0f;
@@ -1462,6 +1782,7 @@ namespace ConcurrentBusBoarding
             return entityManager.HasComponent<Transform>(vehicle) &&
                 IsPointInside(zone, entityManager.GetComponentData<Transform>(vehicle).m_Position);
         }
+
 
         internal static float GetSpeed(EntityManager entityManager, Entity vehicle)
         {
