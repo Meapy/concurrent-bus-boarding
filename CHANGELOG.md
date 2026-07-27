@@ -1,8 +1,14 @@
 # Changelog
 
-## 1.5.1 - 2026-07-27
+## 1.5.3 - 2026-07-27
+
+- Greatly reduce the mod's simulation cost. Boarding-zone geometry was rebuilt for every bus in the city several times a second, walking each route's segment and path-element buffers; it is now resolved only for stops where two or more buses are actually present, and the working collections are reused instead of reallocated every update. On a large city this was enough to make the simulation stutter, and the critical error reported in 1.5.0 and 1.5.2 was the game reacting to that stutter rather than a fault of its own.
+
+## 1.5.2 - 2026-07-27
 
 - Fix a critical simulation error introduced in 1.5.0. The stuck-stop repair and the line report ran in the wrong update phase and changed entities while the game was mid-simulation, which stopped the game obtaining an internal command buffer.
+
+## 1.5.1 - 2026-07-27
 
 - Concurrent boarding is now off by default and must be switched on in Options. A bus held at a stop takes a little longer than the game's own boarding, and the game uses stop waiting times when residents choose a route, so on a busy network it can cost passengers.
 - Updating from an earlier version switches it off once, even if it was previously on. Turn it back on in Options if you want it; the choice is then remembered.
@@ -13,9 +19,6 @@
 Fixes bus lines steadily losing their passengers over a long session. Several separate faults
 combined so that stops quietly stopped serving anyone and buses spent far too long parked, and
 because the game uses stop waiting times when residents choose a route, whole lines emptied.
-
-With thanks to **CheeseBunny_Gaming**, **Eiden3000** and **Minimumderp** for reporting this and
-sharing the detail that made it possible to track down.
 
 - Fix bus lines losing all their passengers over time. When a bus finished boarding and moved on, the stop was left reserved for it. The game refuses to start boarding at a stop reserved by another bus that is still boarding elsewhere, so that stop could never board anyone again, and lines died stop by stop until nobody could use them.
 - Add an extra bus attractiveness setting, 100-200% and defaulting to 100%, that makes residents prefer buses specifically. It scales only route costs used exclusively by bus lines, so trams, trains and ferries are unaffected, and it stacks with the existing public transport setting. At the 100% default nothing is changed.

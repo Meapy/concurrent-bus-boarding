@@ -127,6 +127,16 @@ if ($boardingSystems -notmatch 'entry\.Value\.Contains\(slot\.m_Vehicle\)' -or
     throw 'Stop-slot rotation must not strand a cim that is still climbing aboard the current bus.'
 }
 $repair = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingRepairSystem.cs"
+# Zone geometry walks route segment and path-element buffers and allocates, so it must be resolved
+# once per candidate stop, never once per bus, and never for a stop the mod will not manage.
+if ($boardingSystems -notmatch 'entry\.Value\.Count <= 1 && !hasSession' -or
+    $boardingSystems -notmatch 'ObserveZone\(EntityManager, m_Zones, stop, bus\)') {
+    throw 'Boarding-zone geometry must be resolved per contended stop, after the single-bus gate.'
+}
+if ($boardingSystems -notmatch 'ReleaseStopLists\(\)' -or
+    $boardingSystems -notmatch 'm_ListPool') {
+    throw 'Per-update collections must be reused; this runs over every bus several times a second.'
+}
 # Structural changes inside GameSimulation break the game's own command-buffer acquisition.
 if ($mod -match 'UpdateAt<BoardingRepairSystem>\(SystemUpdatePhase\.GameSimulation\)' -or
     $mod -match 'UpdateAt<LineDiagnosticsSystem>\(SystemUpdatePhase\.GameSimulation\)') {
