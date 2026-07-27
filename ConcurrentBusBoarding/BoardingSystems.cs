@@ -101,6 +101,33 @@ namespace ConcurrentBusBoarding
         private int m_SingleBusVisits;
         private int m_ContendedVisits;
 
+        private readonly Dictionary<Entity, List<Entity>> m_BusesByStop = new();
+        private readonly Dictionary<Entity, BoardingZone> m_Zones = new();
+        // A List is used as the pool rather than a Stack: under net48 with these references
+        // Stack<T> is ambiguous between System and mscorlib.
+        private readonly List<List<Entity>> m_ListPool = new();
+        private readonly List<Entity> m_ActiveBuses = new();
+
+        private void ReleaseStopLists()
+        {
+            foreach (KeyValuePair<Entity, List<Entity>> entry in m_BusesByStop)
+            {
+                entry.Value.Clear();
+                m_ListPool.Add(entry.Value);
+            }
+            m_BusesByStop.Clear();
+        }
+
+        private List<Entity> RentList()
+        {
+            int last = m_ListPool.Count - 1;
+            if (last < 0)
+                return new List<Entity>();
+            List<Entity> list = m_ListPool[last];
+            m_ListPool.RemoveAt(last);
+            return list;
+        }
+
         public override int GetUpdateInterval(SystemUpdatePhase phase) => 16;
         public override int GetUpdateOffset(SystemUpdatePhase phase) => 1;
 
@@ -139,8 +166,11 @@ namespace ConcurrentBusBoarding
             if (Mod.Settings != null && !Mod.Settings.EnableConcurrentBoarding)
                 return;
 
-            var busesByStop = new Dictionary<Entity, List<Entity>>();
-            var zones = new Dictionary<Entity, BoardingZone>();
+            // Collections are reused between updates. This runs several times a second over every
+            // bus in the city, so allocating them per update was pure GC pressure.
+            ReleaseStopLists();
+            m_Zones.Clear();
+            Dictionary<Entity, List<Entity>> busesByStop = m_BusesByStop;
             using (NativeArray<Entity> buses = m_Buses.ToEntityArray(Allocator.Temp))
             {
                 foreach (Entity bus in buses)
@@ -182,17 +212,43 @@ namespace ConcurrentBusBoarding
                     if (!managed && (transport.m_State & approaching) == 0)
                         continue;
 
+                    // Zone geometry is deliberately NOT resolved here. Building it walks the route's
+                    // segment and path-element buffers and allocates, and it is only needed for
+                    // stops the mod might actually manage.
                     Add(busesByStop, stop, bus);
-                    BoardingHelpers.ObserveZone(EntityManager, zones, stop, bus);
                 }
             }
 
             foreach (KeyValuePair<Entity, List<Entity>> entry in busesByStop)
             {
                 Entity stop = entry.Key;
-                bool hasZone = zones.TryGetValue(stop, out BoardingZone zone);
+
+                // Cheap gate first. A stop with a single bus and no live session is left entirely to
+                // native AI, so resolving its boarding zone would be wasted work - and that is the
+                // overwhelming majority of stop visits.
+                bool hasSession = false;
+                foreach (Entity bus in entry.Value)
+                {
+                    if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus))
+                    {
+                        hasSession = true;
+                        break;
+                    }
+                }
+                if (entry.Value.Count <= 1 && !hasSession)
+                {
+                    m_SingleBusVisits++;
+                    continue;
+                }
+
+                // Resolve the zone once per candidate stop rather than once per bus.
+                foreach (Entity bus in entry.Value)
+                    BoardingHelpers.ObserveZone(EntityManager, m_Zones, stop, bus);
+
+                bool hasZone = m_Zones.TryGetValue(stop, out BoardingZone zone);
                 bool pullIn = hasZone && zone.IsPullIn;
-                var activeBuses = new List<Entity>();
+                List<Entity> activeBuses = m_ActiveBuses;
+                activeBuses.Clear();
                 float occupiedLength = 0f;
                 BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
 
@@ -380,10 +436,13 @@ namespace ConcurrentBusBoarding
             ? EntityManager.GetComponentData<CurrentRoute>(bus).m_Route
             : Entity.Null;
 
-        private static void Add(Dictionary<Entity, List<Entity>> groups, Entity stop, Entity bus)
+        private void Add(Dictionary<Entity, List<Entity>> groups, Entity stop, Entity bus)
         {
             if (!groups.TryGetValue(stop, out List<Entity> list))
-                groups.Add(stop, list = new List<Entity>());
+            {
+                list = RentList();
+                groups.Add(stop, list);
+            }
             list.Add(bus);
         }
     }
@@ -557,6 +616,10 @@ namespace ConcurrentBusBoarding
         private int m_UnreadyForOtherVehicle;
         private int m_DoorsClosed;
 
+        private readonly Dictionary<Entity, List<Entity>> m_Boarding = new();
+        // See ConcurrentBoardingSystem: Stack<T> is ambiguous under net48 here.
+        private readonly List<List<Entity>> m_ListPool = new();
+
         [Preserve]
         protected override void OnCreate()
         {
@@ -576,7 +639,14 @@ namespace ConcurrentBusBoarding
         [Preserve]
         protected override void OnUpdate()
         {
-            var boarding = new Dictionary<Entity, List<Entity>>();
+            // Runs every frame, so reuse the grouping rather than allocating it each time.
+            foreach (KeyValuePair<Entity, List<Entity>> entry in m_Boarding)
+            {
+                entry.Value.Clear();
+                m_ListPool.Add(entry.Value);
+            }
+            m_Boarding.Clear();
+            Dictionary<Entity, List<Entity>> boarding = m_Boarding;
             using (NativeArray<Entity> buses = m_Buses.ToEntityArray(Allocator.Temp))
             {
                 foreach (Entity bus in buses)
@@ -918,10 +988,22 @@ namespace ConcurrentBusBoarding
             return true;
         }
 
-        private static void Add(Dictionary<Entity, List<Entity>> groups, Entity stop, Entity bus)
+        private void Add(Dictionary<Entity, List<Entity>> groups, Entity stop, Entity bus)
         {
             if (!groups.TryGetValue(stop, out List<Entity> list))
-                groups.Add(stop, list = new List<Entity>());
+            {
+                int last = m_ListPool.Count - 1;
+                if (last < 0)
+                {
+                    list = new List<Entity>();
+                }
+                else
+                {
+                    list = m_ListPool[last];
+                    m_ListPool.RemoveAt(last);
+                }
+                groups.Add(stop, list);
+            }
             list.Add(bus);
         }
     }
