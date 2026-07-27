@@ -32,8 +32,18 @@ namespace ConcurrentBusBoarding
 
         private EntityQuery m_Stops;
         private EntityQuery m_Vehicles;
+        // A stop slot can be orphaned by any path that removes a bus without releasing it - most
+        // obviously a vehicle despawned or replaced mid-session, which never reaches
+        // PassengerDistributionSystem because its query excludes Deleted. One orphaned slot blocks
+        // that stop permanently, so sweep for them continuously rather than only on load.
+        private const uint SweepIntervalFrames = 512u;
+
         private SimulationSystem m_SimulationSystem;
         private bool m_PendingLoadRepair;
+        private uint m_LastSweepFrame;
+        private int m_SweptSlots;
+        private readonly System.Collections.Generic.HashSet<Entity> m_StaleLastSweep = new();
+        private readonly System.Collections.Generic.HashSet<Entity> m_SeenStale = new();
 
         internal static void RequestRepair()
         {
@@ -66,12 +76,28 @@ namespace ConcurrentBusBoarding
         [Preserve]
         protected override void OnUpdate()
         {
+            uint frame = m_SimulationSystem.frameIndex;
             if (!m_PendingLoadRepair && !s_RepairRequested)
+            {
+                // Routine sweep: stop slots only, never vehicle state.
+                if (frame - m_LastSweepFrame < SweepIntervalFrames)
+                    return;
+                m_LastSweepFrame = frame;
+                int swept = ClearStaleStopSlots();
+                if (swept > 0)
+                {
+                    m_SweptSlots += swept;
+                    Mod.Log.Info(
+                        $"Boarding sweep: released {swept} stop slots left by vehicles that are no " +
+                        $"longer there ({m_SweptSlots} since load).");
+                }
                 return;
+            }
 
             bool manual = s_RepairRequested;
             m_PendingLoadRepair = false;
             s_RepairRequested = false;
+            m_LastSweepFrame = frame;
 
             int clearedSlots = ClearStaleStopSlots();
             int repairedVehicles = RepairVehicles();
@@ -87,14 +113,28 @@ namespace ConcurrentBusBoarding
         private int ClearStaleStopSlots()
         {
             int cleared = 0;
+            m_SeenStale.Clear();
             using NativeArray<Entity> stops = m_Stops.ToEntityArray(Allocator.Temp);
             foreach (Entity stop in stops)
             {
+                // Only bus stops. This mod never writes any other kind of stop's slot, so sweeping
+                // tram, rail or harbour stops could only ever interrupt the game's own boarding.
+                if (!BoardingHelpers.IsPassengerBusStop(EntityManager, stop))
+                    continue;
+
                 BoardingVehicle slot = EntityManager.GetComponentData<BoardingVehicle>(stop);
                 bool changed = false;
 
                 if (slot.m_Vehicle != Entity.Null && IsStaleHolder(slot.m_Vehicle, stop))
                 {
+                    // Two strikes. A bus that has just advanced to its next waypoint still holds the
+                    // slot until the game's asynchronous EndBoarding clears it, so acting on a single
+                    // observation races native cleanup and steals live boardings.
+                    if (!m_StaleLastSweep.Contains(stop))
+                    {
+                        m_SeenStale.Add(stop);
+                        continue;
+                    }
                     slot.m_Vehicle = Entity.Null;
                     changed = true;
                 }
@@ -110,6 +150,10 @@ namespace ConcurrentBusBoarding
                     cleared++;
                 }
             }
+
+            m_StaleLastSweep.Clear();
+            foreach (Entity stop in m_SeenStale)
+                m_StaleLastSweep.Add(stop);
             return cleared;
         }
 

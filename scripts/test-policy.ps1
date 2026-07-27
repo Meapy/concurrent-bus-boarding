@@ -24,10 +24,18 @@ $breadcrumbs = Get-Content -Raw "$root\ConcurrentBusBoarding\CrashBreadcrumbs.cs
 if ($boardingSystems -match 'm_DepartureFrame = math\.max') {
     throw 'A synthetic session must open its dwell window from the current frame, as native StartBoarding does.'
 }
-# Admission must open the boarding window; only the doors-closing phase may shut it.
-if ($boardingSystems -notmatch 'private void BeginBoarding[\s\S]*?m_MaxBoardingDistance = float\.MaxValue;' -or
-    $boardingSystems -match 'private void BeginBoarding[\s\S]*?m_MaxBoardingDistance = 0f;[\s\S]*?\n        \}') {
-    throw 'Admission must open the boarding window; only the doors-closing phase may shut it.'
+# Native StartBoarding begins with the window CLOSED at 0 and widens it each tick from
+# m_MinWaitingDistance. Opening it fully at admission destroys that ratchet.
+if ($boardingSystems -notmatch 'private void BeginBoarding[\s\S]*?m_MaxBoardingDistance = 0f;') {
+    throw 'A boarding session must start with the native closed window, not a fully open one.'
+}
+# Closing the doors on a quiet passenger count fires before the ratchet has admitted anyone.
+if ($boardingSystems -match 'ShouldCloseDoors\([^)]*exchangeSettled') {
+    throw 'Doors must not close on a settled passenger count; the window needs time to widen.'
+}
+# Inflated dwell raises a line's measured waiting time, which is what drives cims away from buses.
+if ($boardingSystems -notmatch 'BoardingPolicy\.ClampManagedDeparture\(') {
+    throw 'A managed session must not inherit the native far-future departure frame.'
 }
 if ($boardingSystems -notmatch 'm_DepartureFrame = m_SimulationSystem\.frameIndex \+ 64u' -or
     $boardingSystems -notmatch 'm_MaxBoardingDistance = float\.MaxValue' -or
@@ -71,6 +79,11 @@ if ($boardingSystems -notmatch 'internal Entity Stop;' -or
 if ($boardingSystems -match 'active\.SelectedForVehicleAi != 0[\s\S]*?slot\.m_Vehicle != bus') {
     throw 'Shared stop-slot rotation must not release another bus from its boarding hold.'
 }
+# The mod writes BoardingVehicle.m_Vehicle for every active session, so every release path must
+# clear it. Leaving it set points the stop at a departed bus and blocks that stop permanently.
+if ($boardingSystems -match 'UsesNativeBoarding == 0[\s\S]{0,600}?slot\.m_Vehicle = Entity\.Null') {
+    throw 'Stop-slot release must not be conditional on the session kind.'
+}
 if ($boardingSystems -notmatch 'ArePassengersReady\(' -or
     $boardingSystems -notmatch 'BoardingPolicy\.CanFinishBoarding\(' -or
     $boardingSystems -notmatch 'VehicleUtils\.SetTarget') {
@@ -84,6 +97,10 @@ if ($boardingSystems -match 'else if \(!passengersReady && !timedOut\)' -or
     $boardingSystems -notmatch 'CountUnreadyPassengers\(EntityManager, bus,' -or
     $boardingSystems -notmatch 'm_SessionsThatSawAWaitingCim\+\+') {
     throw 'Completion gates must be measured independently; a chained counter hides every gate after the first.'
+}
+if ($settings -notmatch 'public bool EnableConcurrentBoarding' -or
+    ($boardingSystems | Select-String -Pattern '!Mod\.Settings\.EnableConcurrentBoarding' -AllMatches).Matches.Count -lt 2) {
+    throw 'Concurrent boarding must have a runtime kill switch that also releases active sessions.'
 }
 if ($boardingSystems -notmatch 'BoardingPolicy\.ShouldEngageConcurrentBoarding\(contenders\)' -or
     $boardingSystems -notmatch 'if \(!engage \|\|') {
@@ -110,6 +127,16 @@ if ($mod -notmatch 'UpdateAt<BoardingRepairSystem>' -or
 # Repairing those would rewrite every healthy vehicle in the city instead of the stuck ones.
 if ($repair -notmatch 'if \(boarding\)') {
     throw 'Vehicle repair must only touch buses that are actually stuck in Boarding.'
+}
+# One orphaned stop slot blocks that stop permanently, so it cannot wait for the next city load.
+if ($repair -notmatch 'SweepIntervalFrames') {
+    throw 'Orphaned stop slots must be swept continuously, not only when a city loads.'
+}
+# The sweep must never touch another transport mode's stop, and must never act on a single
+# observation, which races the game's own asynchronous EndBoarding and steals live boardings.
+if ($repair -notmatch 'IsPassengerBusStop\(EntityManager, stop\)' -or
+    $repair -notmatch 'm_StaleLastSweep\.Contains\(stop\)') {
+    throw 'The sweep must cover bus stops only and require two consecutive stale observations.'
 }
 # Measurement disproved the reachability premise: concurrent buses board and unload normally at
 # zone distances, so admission must not reject a contained bus on distance alone.
@@ -200,4 +227,11 @@ if ($settings -notmatch 'SettingsUISlider\(min = 50f, max = 200f, step = 5f, uni
     $transitAttractiveness -notmatch 'AddComponent<PathfindUpdated>\(m_RouteElements\)' -or
     $transitAttractiveness -match 'Game\.Citizens|TripNeeded|PublicTransportFlags') {
     throw 'Public transport attractiveness must adjust only native passenger-line starting costs and refresh route edges.'
+}
+# A pathfind prefab shared with another passenger mode must never receive the bus multiplier.
+if ($settings -notmatch 'public int BusAttractiveness \{ get; set; \} = 100;' -or
+    $transitAttractiveness -notmatch 'm_BusOnlyCosts' -or
+    $transitAttractiveness -notmatch 'line\.m_TransportType == TransportType\.Bus' -or
+    $transitAttractiveness -notmatch 'existing && isBus') {
+    throw 'The bus multiplier must apply only to pathfind costs used exclusively by bus lines.'
 }

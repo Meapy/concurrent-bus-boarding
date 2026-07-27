@@ -54,6 +54,7 @@ namespace ConcurrentBusBoarding
             // Registered in observer-only builds too: repairing residue left by earlier versions is
             // independent of whether concurrent boarding is active.
             updateSystem.UpdateAt<BoardingRepairSystem>(SystemUpdatePhase.GameSimulation);
+            updateSystem.UpdateAt<LineDiagnosticsSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAt<BoardingZoneToolSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAt<BoardingZoneRenderSystem>(SystemUpdatePhase.Rendering);
             updateSystem.UpdateAt<BoardingZoneEditorUISystem>(SystemUpdatePhase.UIUpdate);

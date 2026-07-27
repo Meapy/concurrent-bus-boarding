@@ -106,31 +106,29 @@ internal static class BoardingPolicyCheck
             "bus outside available zone does not request a stop");
         Expect(!BoardingPolicy.ShouldRequestStop(true, true),
             "boarding bus does not repeat the stop request");
-        Expect(!BoardingPolicy.CanFinishBoarding(99, 100, float.MaxValue, true, false, false),
+        Expect(!BoardingPolicy.CanFinishBoarding(99, 100, float.MaxValue, true, false),
             "boarding dwell must finish");
-        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, true, false, false),
-            "waiting passengers must finish");
-        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, false, false),
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, true, false),
+            "a partly widened ratchet still has waiting cims to admit");
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 0f, true, false),
+            "a session cannot finish before its window has opened at all");
+        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, false),
             "onboard transitions must finish");
-        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, true, false, false),
-            "completed follower can leave");
-        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, true, false),
+        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, true, false),
+            "a fully widened ratchet means nobody was left behind, so the bus can leave");
+        Expect(BoardingPolicy.CanFinishBoarding(100, 100, float.MaxValue, false, true),
             "timed-out follower can leave despite a stuck passenger transition");
-        Expect(BoardingPolicy.CanFinishBoarding(100, 100, 12f, true, false, true),
-            "a bus whose own exchange has settled leaves while the queue is still busy");
-        Expect(!BoardingPolicy.CanFinishBoarding(99, 100, 12f, true, false, true),
-            "a settled exchange still respects the minimum dwell");
-        Expect(!BoardingPolicy.CanFinishBoarding(100, 100, 12f, false, false, true),
-            "a settled exchange still waits for onboard transitions");
-        Expect(BoardingPolicy.IdleAttemptsBeforeDeparture > 0,
-            "the exchange must be observed at least once before it counts as settled");
-        Expect(BoardingPolicy.ShouldCloseDoors(false, 100, 100, 512, true),
-            "a settled exchange closes the doors immediately");
-        Expect(!BoardingPolicy.ShouldCloseDoors(false, 611, 100, 512, false),
-            "a busy stop keeps admitting boarders inside the window");
-        Expect(BoardingPolicy.ShouldCloseDoors(false, 612, 100, 512, false),
-            "a busy stop must still close its doors when the window elapses");
-        Expect(!BoardingPolicy.ShouldCloseDoors(true, 1000, 100, 512, true),
+        Expect(BoardingPolicy.ClampManagedDeparture(100, 4196) == 100 + BoardingPolicy.ManagedDepartureFrames,
+            "a native far-future departure frame is clamped for a managed session");
+        Expect(BoardingPolicy.ClampManagedDeparture(100, 120) == 120,
+            "a departure frame already within the managed dwell is left alone");
+        Expect(BoardingPolicy.BoardingWindowFrames < BoardingPolicy.ManagedBoardingTimeoutFrames,
+            "the boarding window must close well before the dwell deadline");
+        Expect(!BoardingPolicy.ShouldCloseDoors(false, 611, 100, 512),
+            "the window stays open while the ratchet is still widening");
+        Expect(BoardingPolicy.ShouldCloseDoors(false, 612, 100, 512),
+            "a stalled ratchet must still close its doors when the window elapses");
+        Expect(!BoardingPolicy.ShouldCloseDoors(true, 1000, 100, 512),
             "doors are only closed once per session");
         Expect(BoardingPolicy.BoardingWindowFrames < BoardingPolicy.ManagedBoardingTimeoutFrames,
             "the boarding window must close well before the dwell deadline");

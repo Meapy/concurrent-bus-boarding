@@ -102,7 +102,19 @@ $targets = @(
     # and that bus lines do not share a m_PathfindPrefab with other passenger modes.
     @{ Name = 'TransportLineData.type';    Args = @('type:Game.Prefabs.TransportLineData') },
     @{ Name = 'PathfindTransportData.type'; Args = @('type:PathfindTransportData') },
-    @{ Name = 'writers.PathfindPrefab';    Args = @('m_PathfindPrefab') }
+    @{ Name = 'writers.PathfindPrefab';    Args = @('m_PathfindPrefab') },
+    # Authoritative answer to "why does a waiting cim not enter a vehicle that has room".
+    @{ Name = 'TryEnterVehicle';           Args = @('-', 'BoardingJob::TryEnterVehicle') },
+    @{ Name = 'WaitTimeExceeded';          Args = @('-', 'BoardingJob::WaitTimeExceeded') },
+    # TryEnterVehicle shows cims almost never get past TryFindVehicle: m_MinWaitingDistance is only
+    # written when a vehicle was found but was out of reach, and it is almost never written. So the
+    # matching itself is failing, and this is where it fails.
+    @{ Name = 'TryFindVehicle';            Args = @('-', 'BoardingJob::TryFindVehicle') },
+    @{ Name = 'CheckBoardingVehicle';      Args = @('-', 'BoardingJob::CheckVehicle') },
+    # TryFindVehicle returns Null unless GetFreeSpace reports the right flag bits in z, so the
+    # contents of that per-frame vehicle map decide whether a waiting cim can board at all.
+    @{ Name = 'GetFreeSpace';              Args = @('-', 'BoardingJob::GetFreeSpace') },
+    @{ Name = 'ResidentAISystem.type';     Args = @('type:Game.Simulation.ResidentAISystem') }
 )
 
 foreach ($target in $targets) {

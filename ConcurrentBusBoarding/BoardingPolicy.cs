@@ -28,7 +28,18 @@ namespace ConcurrentBusBoarding
         // Longest a session keeps admitting new passengers before it closes its doors. At a busy
         // stop the arrival stream never stops on its own, so without a cap the bus keeps accepting
         // boarders, always has someone mid-transition, and can never satisfy the readiness gate.
-        internal const uint BoardingWindowFrames = 512u;
+        internal const uint BoardingWindowFrames = 128u;
+        // Native StartBoarding can push m_DepartureFrame up to 4096 frames out. A managed session
+        // must not inherit that: it holds the bus for minutes where a vanilla dwell is seconds, and
+        // inflated dwell raises the line's measured waiting time, which is what the pathfinder uses
+        // to decide whether a cim takes the bus at all.
+        internal const uint ManagedDepartureFrames = 64u;
+
+        internal static uint ClampManagedDeparture(uint frame, uint departureFrame)
+        {
+            uint latest = frame + ManagedDepartureFrames;
+            return departureFrame > latest ? latest : departureFrame;
+        }
         private const double SimulationFramesPerMinute = 182.044444444444;
 
         internal static bool IsPullInLane(bool secondaryLane, bool splitsFromRoad, bool mergesIntoRoad,
@@ -179,13 +190,15 @@ namespace ConcurrentBusBoarding
         // Departure is two-phase, as a real stop is. Phase one accepts passengers. Phase two closes
         // the doors so the cims already climbing aboard can finish, because a bus that never stops
         // admitting new boarders never reaches "all passengers ready".
+        // Deliberately does NOT close on a settled passenger count. The native window starts closed
+        // and widens each tick, so early attempts see no boarding simply because nobody is admitted
+        // yet - treating that as "finished" made buses depart empty. Only the window cap closes the
+        // doors, and it exists purely so a stalled ratchet cannot hold the bus forever.
         internal static bool ShouldCloseDoors(bool doorsClosing, uint frame, uint admittedFrame,
-            uint windowFrames, bool exchangeSettled)
+            uint windowFrames)
         {
             if (doorsClosing)
                 return false;
-            if (exchangeSettled)
-                return true;
             return admittedFrame != 0u && frame >= admittedFrame + windowFrames;
         }
 
@@ -197,11 +210,12 @@ namespace ConcurrentBusBoarding
             return passengersReady || timedOut;
         }
 
+        // Mirrors native StopBoarding: the ratchet is only finished once it has widened all the way
+        // to float.MaxValue, meaning no waiting cim was left behind.
         internal static bool CanFinishBoarding(uint frame, uint departureFrame, float maxBoardingDistance,
-            bool passengersReady, bool timedOut, bool exchangeSettled)
+            bool passengersReady, bool timedOut)
         {
-            return frame >= departureFrame &&
-                (maxBoardingDistance == float.MaxValue || exchangeSettled) &&
+            return frame >= departureFrame && maxBoardingDistance == float.MaxValue &&
                 (passengersReady || timedOut);
         }
 

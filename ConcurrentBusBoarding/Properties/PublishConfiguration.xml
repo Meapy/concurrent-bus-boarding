@@ -7,7 +7,7 @@ Concurrent Bus Boarding lets several buses use the same stop at the same time wh
 
 FEATURES
 
-- Up to two buses board together at ordinary curbside stops.
+- Up to two buses board together at ordinary curbside stops, and can be turned off in Options at any time.
 - Pull-in bays use their full detected lane and fit as many buses as their usable length allows.
 - Buses keep their natural traffic spacing and remain stopped once boarding starts, even when the bus ahead leaves.
 - Waiting passengers are offered to active buses in round-robin order while the game keeps its normal route, fare, animation, and capacity checks.
@@ -18,6 +18,7 @@ FEATURES
 - Options includes a confirmed action that resets every customized zone in the current city.
 - Boarding-zone overlays show only for the selected stop by default; this can be changed in Options.
 - Options includes a 50-200% public transport attractiveness slider. The 100% default preserves vanilla passenger-route costs; higher values make passenger public transport more attractive.
+- Options includes a 100-200% extra bus attractiveness slider, defaulting to 150%, that makes residents prefer buses specifically. It affects only route costs used exclusively by bus lines, so other transport types keep their normal costs.
 - Options includes a confirmed action that clears stuck boarding state from a city saved with an earlier version.
 
 HOW TO EDIT A STOP
@@ -37,7 +38,7 @@ Boarding behavior changes only passenger buses. The optional attractiveness sett
 	<Tag Value="Code Mod" />
 	<ModVersion Value="1.5.0" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Fixes buses becoming stuck at a stop until their dwell limit expired, which inflated journey times across every line. Concurrent boarding now engages only when two or more buses are actually at the same stop, so a bus alone at its stop is left entirely to the game. A boarding bus now closes its doors before waiting for the last passengers, and cims are no longer stranded halfway aboard by the shared stop slot. Adds an Options action, also run automatically on load, that clears stuck boarding state from cities saved with an earlier version." />
+	<ChangeLog Value="Fixes bus lines steadily losing their passengers over a long session. A stop could stay reserved for a bus that had already moved on, and the game will not start boarding at a reserved stop, so lines died stop by stop; stops reserved by a vehicle that is no longer there are now released continuously. Buses no longer sit at a stop far longer than the game intends, and no longer leave before waiting passengers have been let on. Concurrent boarding now engages only when two or more buses are actually at the same stop, so a bus alone at its stop is left entirely to the game, and it can be switched off in Options at any time. Adds an optional bus attractiveness slider that makes residents prefer buses specifically, and an Options action, also run automatically on load, that clears stuck boarding state from cities saved with an earlier version. With thanks to CheeseBunny_Gaming, Eiden3000 and Minimumderp for reporting the problem and helping track it down." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />

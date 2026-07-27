@@ -22,9 +22,22 @@ namespace ConcurrentBusBoarding
         {
         }
 
+        // Holding a bus at a stop takes slightly longer than the game's own boarding, and the game
+        // uses stop waiting times when deciding whether residents choose a line. If a busy network
+        // ever loses passengers, turning this off is the first thing to try - it takes effect
+        // immediately and leaves the overlays, zone editor and stuck-stop repair working.
+        [SettingsUISection(MainSection, TransportGroup)]
+        public bool EnableConcurrentBoarding { get; set; } = true;
+
         [SettingsUISection(MainSection, TransportGroup)]
         [SettingsUISlider(min = 50f, max = 200f, step = 5f, unit = "%")]
         public int PublicTransportAttractiveness { get; set; } = 100;
+
+        [SettingsUISection(MainSection, TransportGroup)]
+        // Defaults to 100 so the mod never rewrites native pathfind costs, or forces the citywide
+        // route-edge refresh that goes with them, unless the player opts in.
+        [SettingsUISlider(min = 100f, max = 200f, step = 5f, unit = "%")]
+        public int BusAttractiveness { get; set; } = 100;
 
         [SettingsUISection(MainSection, TransportGroup)]
         [SettingsUIButton]
@@ -33,6 +46,13 @@ namespace ConcurrentBusBoarding
         public bool RepairBoardingState
         {
             set => BoardingRepairSystem.RequestRepair();
+        }
+
+        [SettingsUISection(MainSection, TransportGroup)]
+        [SettingsUIButton]
+        public bool ReportBusLines
+        {
+            set => LineDiagnosticsSystem.RequestReport();
         }
 
         [SettingsUISection(MainSection, DisplayGroup)]
@@ -81,7 +101,9 @@ namespace ConcurrentBusBoarding
 
         public override void SetDefaults()
         {
+            EnableConcurrentBoarding = true;
             PublicTransportAttractiveness = 100;
+            BusAttractiveness = 100;
             OnlyShowSelectedStop = true;
             GlobalOverlayRed = 38;
             GlobalOverlayGreen = 140;
@@ -152,6 +174,18 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionDescLocaleID(
                         nameof(ConcurrentBusBoardingSettings.PublicTransportAttractiveness)),
                     "Adjust how strongly residents prefer passenger public transport when choosing a route. 100% keeps the vanilla cost; higher values make public transport more attractive." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.EnableConcurrentBoarding)),
+                    "Enable concurrent boarding" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.EnableConcurrentBoarding)),
+                    "Let a second bus board alongside the first when two are at the same stop. Turn off to leave every bus entirely to the game while keeping the overlays and zone editor. Takes effect immediately, so you can compare your city with it on and off." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.BusAttractiveness)),
+                    "Extra bus attractiveness" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.BusAttractiveness)),
+                    "Make residents prefer buses specifically, on top of the general public transport setting above. This applies only to route costs used exclusively by bus lines, so other transport types are unaffected. 100% keeps the vanilla bus cost." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ReportBusLines)),
+                    "Write bus line report to log" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ReportBusLines)),
+                    "Write one line per bus route to the mod log: vehicles running, waiting passengers, average wait, boarding success rate, and any stop reserved by a bus that is not releasing it. Changes nothing in the city." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.RepairBoardingState)),
                     "Repair stuck bus stops" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.RepairBoardingState)),
