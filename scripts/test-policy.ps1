@@ -14,6 +14,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $boardingSystems = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingSystems.cs"
 $settings = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoardingSettings.cs"
+$mod = Get-Content -Raw "$root\ConcurrentBusBoarding\Mod.cs"
 $zoneEditor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneEditorUISystem.cs"
 $zoneRenderer = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneRenderSystem.cs"
 $colorOverride = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneColorOverride.cs"
@@ -98,6 +99,16 @@ if ($boardingSystems -match 'else if \(!passengersReady && !timedOut\)' -or
     $boardingSystems -notmatch 'm_SessionsThatSawAWaitingCim\+\+') {
     throw 'Completion gates must be measured independently; a chained counter hides every gate after the first.'
 }
+# Concurrent boarding is opt-in, and existing settings files must be migrated to match.
+if ($settings -match 'public bool EnableConcurrentBoarding \{ get; set; \} = true;') {
+    throw 'Concurrent boarding must stay opt-in.'
+}
+if ($settings -notmatch 'CurrentSettingsVersion' -or
+    $settings -notmatch 'public int SettingsVersion' -or
+    $mod -notmatch 'Settings\.SettingsVersion < ConcurrentBusBoardingSettings\.CurrentSettingsVersion' -or
+    $mod -notmatch 'Settings\.EnableConcurrentBoarding = false;') {
+    throw 'Updating players must be migrated to the opt-in default exactly once.'
+}
 if ($settings -notmatch 'public bool EnableConcurrentBoarding' -or
     ($boardingSystems | Select-String -Pattern '!Mod\.Settings\.EnableConcurrentBoarding' -AllMatches).Matches.Count -lt 2) {
     throw 'Concurrent boarding must have a runtime kill switch that also releases active sessions.'
@@ -115,8 +126,12 @@ if ($boardingSystems -notmatch 'entry\.Value\.Contains\(slot\.m_Vehicle\)' -or
     $boardingSystems -notmatch '!BoardingHelpers\.ArePassengersReady\(EntityManager, slot\.m_Vehicle\)') {
     throw 'Stop-slot rotation must not strand a cim that is still climbing aboard the current bus.'
 }
-$mod = Get-Content -Raw "$root\ConcurrentBusBoarding\Mod.cs"
 $repair = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingRepairSystem.cs"
+# Structural changes inside GameSimulation break the game's own command-buffer acquisition.
+if ($mod -match 'UpdateAt<BoardingRepairSystem>\(SystemUpdatePhase\.GameSimulation\)' -or
+    $mod -match 'UpdateAt<LineDiagnosticsSystem>\(SystemUpdatePhase\.GameSimulation\)') {
+    throw 'Systems making structural changes must not run in the GameSimulation phase.'
+}
 if ($mod -notmatch 'UpdateAt<BoardingRepairSystem>' -or
     $repair -notmatch 'OnGameLoadingComplete' -or
     $repair -notmatch 'RequestRepair' -or

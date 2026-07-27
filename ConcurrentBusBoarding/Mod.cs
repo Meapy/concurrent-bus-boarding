@@ -34,6 +34,22 @@ namespace ConcurrentBusBoarding
             GameManager.instance.localizationManager.AddSource("en-US", new SettingsLocale(Settings));
             AssetDatabase.global.LoadSettings("ConcurrentBusBoarding", Settings,
                 new ConcurrentBusBoardingSettings(this));
+
+            // One-time migration. Concurrent boarding is now opt-in, and a settings file written by
+            // an earlier version has no SettingsVersion field, so it deserializes as 0 and lands
+            // here. Anyone who had the feature on is switched off once and can turn it back on.
+            if (Settings.SettingsVersion < ConcurrentBusBoardingSettings.CurrentSettingsVersion)
+            {
+                bool wasEnabled = Settings.EnableConcurrentBoarding;
+                Settings.EnableConcurrentBoarding = false;
+                Settings.SettingsVersion = ConcurrentBusBoardingSettings.CurrentSettingsVersion;
+                Settings.ApplyAndSave();
+                if (wasEnabled)
+                {
+                    Log.Info("Concurrent boarding is now opt-in and has been switched off. " +
+                        "Re-enable it in Options if you want it.");
+                }
+            }
             CrashBreadcrumbs.Write("mod-onload after-settings");
 #if CBB_OBSERVER_ONLY
             Log.Warn("Observer-only diagnostic build: no simulation systems are registered. " +
@@ -51,10 +67,12 @@ namespace ConcurrentBusBoarding
             updateSystem.UpdateAt<BoardingSystemRegistrationSystem>(SystemUpdatePhase.Modification1);
             updateSystem.UpdateAfter<BoardingHoldSystem, CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
 #endif
-            // Registered in observer-only builds too: repairing residue left by earlier versions is
-            // independent of whether concurrent boarding is active.
-            updateSystem.UpdateAt<BoardingRepairSystem>(SystemUpdatePhase.GameSimulation);
-            updateSystem.UpdateAt<LineDiagnosticsSystem>(SystemUpdatePhase.GameSimulation);
+            // Modification1, not GameSimulation: both perform structural changes, and doing that
+            // inside the simulation phase makes the game's own UpdateGroupSystem fail to obtain an
+            // EntityCommandBuffer. Registered in observer-only builds too, because repairing residue
+            // left by earlier versions is independent of whether concurrent boarding is active.
+            updateSystem.UpdateAt<BoardingRepairSystem>(SystemUpdatePhase.Modification1);
+            updateSystem.UpdateAt<LineDiagnosticsSystem>(SystemUpdatePhase.Modification1);
             updateSystem.UpdateAt<BoardingZoneToolSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAt<BoardingZoneRenderSystem>(SystemUpdatePhase.Rendering);
             updateSystem.UpdateAt<BoardingZoneEditorUISystem>(SystemUpdatePhase.UIUpdate);
@@ -159,6 +177,9 @@ namespace ConcurrentBusBoarding
             s_UpdateSystem = updateSystem;
         }
 
+        // Deferred to the first Modification1 update so every other mod's OnLoad has completed and
+        // All Aboard's replacement car AI can be detected. Shipped in 1.4.1; leave the timing alone
+        // unless there is direct evidence against it.
         protected override void OnUpdate()
         {
             if (s_UpdateSystem != null)

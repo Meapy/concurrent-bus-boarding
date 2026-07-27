@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.1 - 2026-07-27
+
+- Fix a critical simulation error introduced in 1.5.0. The stuck-stop repair and the line report ran in the wrong update phase and changed entities while the game was mid-simulation, which stopped the game obtaining an internal command buffer.
+
+- Concurrent boarding is now off by default and must be switched on in Options. A bus held at a stop takes a little longer than the game's own boarding, and the game uses stop waiting times when residents choose a route, so on a busy network it can cost passengers.
+- Updating from an earlier version switches it off once, even if it was previously on. Turn it back on in Options if you want it; the choice is then remembered.
+- Everything else works either way: the boarding-zone overlays, the per-stop zone editor, the stuck-stop repair, and the fixes from 1.5.0.
+
 ## 1.5.0 - 2026-07-27
 
 Fixes bus lines steadily losing their passengers over a long session. Several separate faults

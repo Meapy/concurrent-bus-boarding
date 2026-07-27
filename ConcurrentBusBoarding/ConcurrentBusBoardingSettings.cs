@@ -22,12 +22,20 @@ namespace ConcurrentBusBoarding
         {
         }
 
-        // Holding a bus at a stop takes slightly longer than the game's own boarding, and the game
-        // uses stop waiting times when deciding whether residents choose a line. If a busy network
-        // ever loses passengers, turning this off is the first thing to try - it takes effect
-        // immediately and leaves the overlays, zone editor and stuck-stop repair working.
+        // Bumping this forces a one-time settings migration on next load. Existing settings files
+        // predate the field and deserialize it as 0, which is how an update reaches players who
+        // already have the feature switched on.
+        internal const int CurrentSettingsVersion = 1;
+
+        [SettingsUIHidden]
+        public int SettingsVersion { get; set; }
+
+        // Off by default. Holding a bus at a stop takes slightly longer than the game's own
+        // boarding, and the game uses stop waiting times when deciding whether residents choose a
+        // line, so this is opt-in. Everything else - overlays, zone editor, stuck-stop repair -
+        // works either way, and the toggle takes effect immediately.
         [SettingsUISection(MainSection, TransportGroup)]
-        public bool EnableConcurrentBoarding { get; set; } = true;
+        public bool EnableConcurrentBoarding { get; set; }
 
         [SettingsUISection(MainSection, TransportGroup)]
         [SettingsUISlider(min = 50f, max = 200f, step = 5f, unit = "%")]
@@ -101,7 +109,8 @@ namespace ConcurrentBusBoarding
 
         public override void SetDefaults()
         {
-            EnableConcurrentBoarding = true;
+            EnableConcurrentBoarding = false;
+            SettingsVersion = CurrentSettingsVersion;
             PublicTransportAttractiveness = 100;
             BusAttractiveness = 100;
             OnlyShowSelectedStop = true;
@@ -177,7 +186,7 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.EnableConcurrentBoarding)),
                     "Enable concurrent boarding" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.EnableConcurrentBoarding)),
-                    "Let a second bus board alongside the first when two are at the same stop. Turn off to leave every bus entirely to the game while keeping the overlays and zone editor. Takes effect immediately, so you can compare your city with it on and off." },
+                    "Let a second bus board alongside the first when two are at the same stop. Off by default: a bus held at a stop takes a little longer than the game's own boarding, and the game uses stop waiting times when residents choose a route, so on a busy network this can cost passengers. Takes effect immediately, so you can compare your city with it on and off." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.BusAttractiveness)),
                     "Extra bus attractiveness" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.BusAttractiveness)),
