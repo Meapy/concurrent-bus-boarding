@@ -29,8 +29,10 @@ namespace ConcurrentBusBoarding
     public partial class BoardingRepairSystem : GameSystemBase
     {
         private static bool s_RepairRequested;
+        private static bool s_RefreshHistoryRequested;
 
         private EntityQuery m_Stops;
+        private EntityQuery m_Waypoints;
         private EntityQuery m_Vehicles;
         // A stop slot can be orphaned by any path that removes a bus without releasing it - most
         // obviously a vehicle despawned or replaced mid-session, which never reaches
@@ -48,6 +50,18 @@ namespace ConcurrentBusBoarding
         internal static void RequestRepair()
         {
             s_RepairRequested = true;
+            s_RefreshHistoryRequested = true;
+        }
+
+        /// <summary>
+        /// Asks for the one-time service-history refresh that follows an upgrade. A city damaged by
+        /// an earlier version carries inflated travel and waiting figures that keep its lines
+        /// unpopular even once the cause is fixed, so they are cleared once and then left alone -
+        /// clearing them on every load would keep discarding the game's own honest measurements.
+        /// </summary>
+        internal static void RequestHistoryRefresh()
+        {
+            s_RefreshHistoryRequested = true;
         }
 
         [Preserve]
@@ -56,6 +70,11 @@ namespace ConcurrentBusBoarding
             base.OnCreate();
             m_Stops = GetEntityQuery(
                 ComponentType.ReadWrite<BoardingVehicle>(),
+                ComponentType.Exclude<Deleted>(),
+                ComponentType.Exclude<Game.Tools.Temp>());
+            m_Waypoints = GetEntityQuery(
+                ComponentType.ReadOnly<Connected>(),
+                ComponentType.ReadOnly<Waypoint>(),
                 ComponentType.Exclude<Deleted>(),
                 ComponentType.Exclude<Game.Tools.Temp>());
             m_Vehicles = GetEntityQuery(
@@ -83,7 +102,7 @@ namespace ConcurrentBusBoarding
                 if (frame - m_LastSweepFrame < SweepIntervalFrames)
                     return;
                 m_LastSweepFrame = frame;
-                int swept = ClearStaleStopSlots();
+                int swept = ClearStaleStopSlots(false);
                 if (swept > 0)
                 {
                     m_SweptSlots += swept;
@@ -95,22 +114,89 @@ namespace ConcurrentBusBoarding
             }
 
             bool manual = s_RepairRequested;
+            bool refreshHistory = s_RefreshHistoryRequested;
             m_PendingLoadRepair = false;
             s_RepairRequested = false;
+            s_RefreshHistoryRequested = false;
             m_LastSweepFrame = frame;
 
-            int clearedSlots = ClearStaleStopSlots();
+            // An explicit repair acts on what it can see right now. The two-observation rule exists
+            // so the routine sweep cannot race the game's asynchronous EndBoarding; a player asking
+            // for a repair wants every blocked stop freed on the spot, and the worst case is that a
+            // bus mid-boarding simply begins again.
+            int clearedSlots = ClearStaleStopSlots(true);
             int repairedVehicles = RepairVehicles();
+            int refreshedStops = refreshHistory ? RefreshStopHistory() : 0;
 
-            if (clearedSlots > 0 || repairedVehicles > 0 || manual)
+            if (clearedSlots > 0 || repairedVehicles > 0 || refreshedStops > 0 || manual)
             {
                 Mod.Log.Info(
-                    $"Boarding repair: cleared {clearedSlots} stale stop slots and reset " +
-                    $"{repairedVehicles} buses.");
+                    $"Boarding repair: freed {clearedSlots} blocked stops, reset {repairedVehicles} " +
+                    $"buses, and cleared the service history of {refreshedStops} stops. Lines are " +
+                    $"costed as if newly built, so residents should start using them again.");
             }
         }
 
-        private int ClearStaleStopSlots()
+        /// <summary>
+        /// Returns every bus stop to the state of a newly built one, as far as line costing is
+        /// concerned.
+        ///
+        /// Installed IL: VehicleTiming.m_AverageTravelTime is a floor on each route segment's
+        /// duration in TransportLineTickJob.RefreshLineSegments, and WaitingPassengers carries the
+        /// accumulated waiting history. Both persist, so a line degraded by an earlier version stays
+        /// expensive to the pathfinder even after the underlying fault is fixed, and residents keep
+        /// avoiding it. Clearing them lets the game measure the line fresh.
+        /// </summary>
+        private int RefreshStopHistory()
+        {
+            uint frame = m_SimulationSystem.frameIndex;
+            int refreshed = 0;
+
+            using NativeArray<Entity> waypoints = m_Waypoints.ToEntityArray(Allocator.Temp);
+            foreach (Entity waypoint in waypoints)
+            {
+                if (!EntityManager.HasComponent<Connected>(waypoint))
+                    continue;
+                Entity stop = EntityManager.GetComponentData<Connected>(waypoint).m_Connected;
+                if (!BoardingHelpers.IsPassengerBusStop(EntityManager, stop))
+                    continue;
+
+                if (EntityManager.HasComponent<VehicleTiming>(waypoint))
+                {
+                    VehicleTiming timing = EntityManager.GetComponentData<VehicleTiming>(waypoint);
+                    timing.m_AverageTravelTime = 0f;
+                    timing.m_LastDepartureFrame = frame;
+                    EntityManager.SetComponentData(waypoint, timing);
+                }
+
+                if (EntityManager.HasComponent<WaitingPassengers>(waypoint))
+                {
+                    // m_Count is recounted every tick from the cims actually present, so it is left
+                    // alone; only the accumulated history is cleared.
+                    WaitingPassengers passengers =
+                        EntityManager.GetComponentData<WaitingPassengers>(waypoint);
+                    passengers.m_AverageWaitingTime = 0;
+                    passengers.m_OngoingAccumulation = 0;
+                    passengers.m_ConcludedAccumulation = 0;
+                    passengers.m_SuccessAccumulation = 0;
+                    EntityManager.SetComponentData(waypoint, passengers);
+                }
+
+                // Force the pathfinder to re-cost this stop from the cleared figures.
+                if (!EntityManager.HasComponent<PathfindUpdated>(waypoint))
+                    EntityManager.AddComponent<PathfindUpdated>(waypoint);
+
+                refreshed++;
+            }
+            return refreshed;
+        }
+
+        /// <param name="immediate">
+        /// True for an explicit repair, which frees every blocked stop it can see at once. False for
+        /// the routine sweep, which requires two consecutive stale observations so it cannot race
+        /// the game's asynchronous EndBoarding and steal a live boarding.
+        /// </param>
+        private int ClearStaleStopSlots(bool immediate)
         {
             int cleared = 0;
             m_SeenStale.Clear();
@@ -127,10 +213,7 @@ namespace ConcurrentBusBoarding
 
                 if (slot.m_Vehicle != Entity.Null && IsStaleHolder(slot.m_Vehicle, stop))
                 {
-                    // Two strikes. A bus that has just advanced to its next waypoint still holds the
-                    // slot until the game's asynchronous EndBoarding clears it, so acting on a single
-                    // observation races native cleanup and steals live boardings.
-                    if (!m_StaleLastSweep.Contains(stop))
+                    if (!immediate && !m_StaleLastSweep.Contains(stop))
                     {
                         m_SeenStale.Add(stop);
                         continue;

@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.6.0 - 2026-07-28
+
+Bus lines no longer lose their passengers over a long session.
+
+The cause was that holding a bus at a stop is counted by the game as part of that line's travel
+time, which is what it uses to decide whether residents choose the line at all. Boarding itself
+always worked, so the buses looked fine while fewer and fewer people were routed to the stops.
+Every concurrent boarding session now gives that time back, and **Repair stuck bus stops**
+clears the history a damaged city has already accumulated.
+
+- Give back the line time consumed while holding a bus, so a line the mod helps is costed as if it had not been held.
+- Concurrent boarding is on by default again. Cities where 1.5.1 to 1.5.3 switched it off automatically get it switched back on once, since the reason for disabling it is fixed; turn it off in Options if you prefer, and that choice is kept.
+- The first city loaded after updating has its stop service history cleared automatically, so lines already damaged by an earlier version recover on their own.
+- **Repair stuck bus stops** now also clears each stop's recorded service history and forces the line to be re-costed, so a city degraded by an earlier version recovers instead of staying unpopular. It acts immediately rather than gradually, and can be used on any other city.
+- Release stops reserved by a bus that has been removed or replaced, continuously rather than only when a city loads.
+- Report bus ridership, waiting passengers and per-stop service to the log, and add a **Write bus line report to log** action, to make this class of problem visible rather than invisible.
+
+With thanks to **CheeseBunny_Gaming**, **Eiden3000** and **Minimumderp** for reporting the
+problem and sticking with the diagnosis.
+
 ## 1.5.3 - 2026-07-27
 
 - Greatly reduce the mod's simulation cost. Boarding-zone geometry was rebuilt for every bus in the city several times a second, walking each route's segment and path-element buffers; it is now resolved only for stops where two or more buses are actually present, and the working collections are reused instead of reallocated every update. On a large city this was enough to make the simulation stutter, and the critical error reported in 1.5.0 and 1.5.2 was the game reacting to that stutter rather than a fault of its own.
@@ -12,6 +32,9 @@
 
 - Concurrent boarding is now off by default and must be switched on in Options. A bus held at a stop takes a little longer than the game's own boarding, and the game uses stop waiting times when residents choose a route, so on a busy network it can cost passengers.
 - Updating from an earlier version switches it off once, even if it was previously on. Turn it back on in Options if you want it; the choice is then remembered.
+- Fix residents gradually giving up on bus lines the mod was helping. Holding a bus at a stop was counted by the game as part of the line's travel time, which made the line look permanently slower and pushed residents onto other options, even though boarding itself worked fine. Each concurrent boarding session now gives that time back.
+- **Repair stuck bus stops** also clears each stop's recorded service history, so a line degraded by an earlier version is costed as if newly built and residents start choosing it again.
+- **Repair stuck bus stops** in Options now frees every blocked stop at once instead of recovering gradually. Use it if a line has stopped carrying passengers and it should pick up again straight away.
 - Everything else works either way: the boarding-zone overlays, the per-stop zone editor, the stuck-stop repair, and the fixes from 1.5.0.
 
 ## 1.5.0 - 2026-07-27

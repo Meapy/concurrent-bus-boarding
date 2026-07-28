@@ -57,6 +57,9 @@ namespace ConcurrentBusBoarding
         internal byte UsesNativeBoarding;
         // Frame the session was admitted. Drives the unconditional dwell deadline.
         internal uint AdmittedFrame;
+        // The route waypoint this session is serving. VehicleTiming lives on the waypoint, and the
+        // held time has to be repaid there when the session ends.
+        internal Entity Waypoint;
         // Holds the passenger-facing stop slot for a whole 16-frame tick, in phase with the car AI.
         internal byte SelectedForPassengers;
         // This bus's own boarding progress. When the count stops changing across consecutive
@@ -186,14 +189,14 @@ namespace ConcurrentBusBoarding
                     {
                         CrashBreadcrumbs.Write($"boarding-skip unresolved-prefab bus={CrashBreadcrumbs.Id(bus)} prefab={CrashBreadcrumbs.Id(vehiclePrefab)}");
                         if (managed)
-                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                            AbandonSession(bus, active);
                         continue;
                     }
 
                     if (!BoardingHelpers.TryGetStop(EntityManager, bus, out Entity stop))
                     {
                         if (managed)
-                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                            AbandonSession(bus, active);
                         continue;
                     }
 
@@ -201,7 +204,7 @@ namespace ConcurrentBusBoarding
                     if (!BoardingHelpers.CanManageRouteContext(EntityManager, bus, route))
                     {
                         if (managed)
-                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                            AbandonSession(bus, active);
                         continue;
                     }
 
@@ -305,6 +308,7 @@ namespace ConcurrentBusBoarding
                         Route = GetCurrentRoute(bus),
                         UsesNativeBoarding = 1,
                         AdmittedFrame = m_SimulationSystem.frameIndex,
+                        Waypoint = EntityManager.GetComponentData<Target>(bus).m_Target,
                         LastPassengerCount = BoardingHelpers.GetPassengerCount(EntityManager, bus)
                     });
                     activeBuses.Add(bus);
@@ -351,6 +355,7 @@ namespace ConcurrentBusBoarding
                         Stop = stop,
                         Route = GetCurrentRoute(bus),
                         AdmittedFrame = m_SimulationSystem.frameIndex,
+                        Waypoint = EntityManager.GetComponentData<Target>(bus).m_Target,
                         LastPassengerCount = BoardingHelpers.GetPassengerCount(EntityManager, bus)
                     });
                     CrashBreadcrumbs.Write($"boarding-begin active-added bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
@@ -390,6 +395,16 @@ namespace ConcurrentBusBoarding
             }
         }
 
+        /// <summary>
+        /// Drops a session whose context is no longer valid, repaying the line time it held first.
+        /// </summary>
+        private void AbandonSession(Entity bus, ConcurrentBoardingActive active)
+        {
+            BoardingHelpers.RepayHeldTime(EntityManager, m_SimulationSystem.frameIndex, active,
+                out _, out _);
+            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+        }
+
         private void BeginBoarding(Entity bus)
         {
             VehiclePublicTransport transport = EntityManager.GetComponentData<VehiclePublicTransport>(bus);
@@ -424,6 +439,7 @@ namespace ConcurrentBusBoarding
                 AdmittedFrame = active.AdmittedFrame != 0u
                     ? active.AdmittedFrame
                     : m_SimulationSystem.frameIndex,
+                Waypoint = active.Waypoint,
                 SelectedForPassengers = selected ? (byte)1 : (byte)0,
                 LastPassengerCount = active.LastPassengerCount,
                 IdleAttempts = active.IdleAttempts,
@@ -609,6 +625,10 @@ namespace ConcurrentBusBoarding
         private int m_GateSettled;
         private int m_BlockedByWaypoint;
         private int m_StickySlotHolds;
+        private int m_RepaidSessions;
+        private float m_RepaidFrames;
+        private float m_LastRepayBefore;
+        private float m_LastRepayAfter;
         private int m_SessionsThatSawAWaitingCim;
         private int m_PassengersBoarded;
         private int m_PassengersAlighted;
@@ -655,6 +675,7 @@ namespace ConcurrentBusBoarding
                     // Kill switch: release immediately and hand the bus back to native AI.
                     if (Mod.Settings != null && !Mod.Settings.EnableConcurrentBoarding)
                     {
+                        RepayHeldTime(active);
                         BoardingHelpers.ForceReleaseConcurrentBoarding(EntityManager, bus, active);
                         continue;
                     }
@@ -668,12 +689,14 @@ namespace ConcurrentBusBoarding
                         m_ExpiredSessions++;
                         TryAdvanceToNextWaypoint(bus);
                         BeginRouteHandoff(bus, active.Route);
+                        RepayHeldTime(active);
                         BoardingHelpers.ForceReleaseConcurrentBoarding(EntityManager, bus, active);
                         continue;
                     }
                     if (!BoardingHelpers.CanManageRouteContext(EntityManager, bus, active.Route))
                     {
                         CrashBreadcrumbs.Write($"active-removed invalid-route bus={CrashBreadcrumbs.Id(bus)} route={CrashBreadcrumbs.Id(active.Route)}");
+                        RepayHeldTime(active);
                         BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                         continue;
                     }
@@ -683,6 +706,7 @@ namespace ConcurrentBusBoarding
                     {
                         CrashBreadcrumbs.Write($"active-removed no-stop bus={CrashBreadcrumbs.Id(bus)}");
                         BeginRouteHandoff(bus, active.Route);
+                        RepayHeldTime(active);
                         BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                         continue;
                     }
@@ -692,6 +716,7 @@ namespace ConcurrentBusBoarding
                     {
                         CrashBreadcrumbs.Write($"active-complete bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(active.Stop)} next={CrashBreadcrumbs.Id(stop)}");
                         BeginRouteHandoff(bus, active.Route);
+                        RepayHeldTime(active);
                         BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                         continue;
                     }
@@ -713,7 +738,8 @@ namespace ConcurrentBusBoarding
                             CrashBreadcrumbs.Write($"active-complete native bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
                             m_NativeCompletions++;
                             BeginRouteHandoff(bus, active.Route);
-                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                            RepayHeldTime(active);
+                        BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                             continue;
                         }
                         if (BoardingPolicy.ShouldCompleteManagedBoarding(
@@ -724,7 +750,8 @@ namespace ConcurrentBusBoarding
                             CrashBreadcrumbs.Write($"active-complete follower bus={CrashBreadcrumbs.Id(bus)} stop={CrashBreadcrumbs.Id(stop)}");
                             m_ManagedCompletions++;
                             BeginRouteHandoff(bus, active.Route);
-                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                            RepayHeldTime(active);
+                        BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                             continue;
                         }
                         EntityManager.SetComponentData(bus, active);
@@ -815,6 +842,22 @@ namespace ConcurrentBusBoarding
                 $"waypoint={m_BlockedByWaypoint}; doors closed={m_DoorsClosed}; " +
                 $"unready passengers={m_UnreadyPassengers} " +
                 $"of which pointing at another vehicle={m_UnreadyForOtherVehicle}.");
+            Mod.Log.Info(
+                $"Line time repaid: {m_RepaidSessions} sessions, {(int)m_RepaidFrames}f total, " +
+                $"last correction {m_LastRepayBefore:0.#} -> {m_LastRepayAfter:0.#}.");
+        }
+
+        private void RepayHeldTime(ConcurrentBoardingActive active)
+        {
+            float repay = BoardingHelpers.RepayHeldTime(EntityManager,
+                m_SimulationSystem.frameIndex, active, out float before, out float after);
+            if (repay <= 0f)
+                return;
+
+            m_RepaidSessions++;
+            m_RepaidFrames += repay;
+            m_LastRepayBefore = before;
+            m_LastRepayAfter = after;
         }
 
         private void BeginRouteHandoff(Entity bus, Entity route)
@@ -1263,6 +1306,39 @@ namespace ConcurrentBusBoarding
             DynamicBuffer<RouteWaypoint> waypoints = entityManager.GetBuffer<RouteWaypoint>(route, true);
             return data.m_Index >= 0 && data.m_Index < waypoints.Length &&
                 waypoints[data.m_Index].m_Waypoint == waypoint;
+        }
+
+        /// <summary>
+        /// Gives back the time a session held a bus beyond a normal dwell.
+        ///
+        /// Installed IL: TransportBoardingJob.BeginBoarding derives
+        /// VehicleTiming.m_AverageTravelTime from the gap between departures, and
+        /// TransportLineTickJob.RefreshLineSegments uses that value as a floor on each route
+        /// segment's duration, which sums into the line's duration and so its pathfinding cost. Held
+        /// time falls inside that gap, so without this the mod makes the lines it helps look
+        /// permanently slower and residents stop being routed to their stops.
+        /// </summary>
+        internal static float RepayHeldTime(EntityManager entityManager, uint frame,
+            ConcurrentBoardingActive active, out float before, out float after)
+        {
+            before = 0f;
+            after = 0f;
+            Entity waypoint = active.Waypoint;
+            if (waypoint == Entity.Null || !entityManager.Exists(waypoint) ||
+                !entityManager.HasComponent<VehicleTiming>(waypoint))
+                return 0f;
+
+            float repay = BoardingPolicy.HeldTimeToRepay(frame, active.AdmittedFrame,
+                BoardingPolicy.ManagedDepartureFrames);
+            if (repay <= 0f)
+                return 0f;
+
+            VehicleTiming timing = entityManager.GetComponentData<VehicleTiming>(waypoint);
+            before = timing.m_AverageTravelTime;
+            timing.m_AverageTravelTime = math.max(0f, before - repay);
+            after = timing.m_AverageTravelTime;
+            entityManager.SetComponentData(waypoint, timing);
+            return repay;
         }
 
         // Deadline escape hatch. Unlike ReleaseConcurrentBoarding this also clears a native session's

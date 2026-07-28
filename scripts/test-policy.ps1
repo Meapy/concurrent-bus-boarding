@@ -22,6 +22,8 @@ $customColor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneCustomC
 $transitAttractiveness = Get-Content -Raw "$root\ConcurrentBusBoarding\PublicTransportAttractivenessSystem.cs"
 $project = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoarding.csproj"
 $breadcrumbs = Get-Content -Raw "$root\ConcurrentBusBoarding\CrashBreadcrumbs.cs"
+$repair = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingRepairSystem.cs"
+$diagnostics = Get-Content -Raw "$root\ConcurrentBusBoarding\LineDiagnosticsSystem.cs"
 if ($boardingSystems -match 'm_DepartureFrame = math\.max') {
     throw 'A synthetic session must open its dwell window from the current frame, as native StartBoarding does.'
 }
@@ -37,6 +39,34 @@ if ($boardingSystems -match 'ShouldCloseDoors\([^)]*exchangeSettled') {
 # Inflated dwell raises a line's measured waiting time, which is what drives cims away from buses.
 if ($boardingSystems -notmatch 'BoardingPolicy\.ClampManagedDeparture\(') {
     throw 'A managed session must not inherit the native far-future departure frame.'
+}
+# Held time is measured by the game as line travel time and prices the line out of residents'
+# route choices, so every session must give it back.
+if ($boardingSystems -notmatch 'RepayHeldTime\(' -or
+    $boardingSystems -notmatch 'VehicleTiming' -or
+    $boardingSystems -notmatch 'HeldTimeToRepay\(') {
+    throw 'A managed session must repay the line time it consumed while holding a bus.'
+}
+if ($repair -notmatch 'RefreshStopHistory' -or
+    $repair -notmatch 'm_AverageTravelTime = 0f') {
+    throw 'Repair must clear the recorded service history that keeps a degraded line unpopular.'
+}
+# Clearing the history on every load would keep discarding the game's own honest measurements.
+if ($repair -notmatch 'refreshHistory \? RefreshStopHistory\(\) : 0' -or
+    $mod -notmatch 'BoardingRepairSystem\.RequestHistoryRefresh\(\)') {
+    throw 'The service-history refresh must run once after an upgrade, not on every load.'
+}
+# Diagnosing lost ridership needs per-stop evidence over time, not only session counters.
+if ($diagnostics -notmatch 'm_SuccessAccumulation' -or
+    $diagnostics -notmatch 'stalled' -or
+    $diagnostics -notmatch 'ReportIntervalFrames') {
+    throw 'Stop diagnosis must track per-stop boarding progress over time.'
+}
+# Emptier stops have two opposite causes. Only per-cim outcomes separate them.
+if ($diagnostics -notmatch 'gaveUp' -or
+    $diagnostics -notmatch 'arrived' -or
+    $diagnostics -notmatch 'riders=') {
+    throw 'Diagnosis must report cim arrivals, boardings, give-ups and live rider counts.'
 }
 if ($boardingSystems -notmatch 'm_DepartureFrame = m_SimulationSystem\.frameIndex \+ 64u' -or
     $boardingSystems -notmatch 'm_MaxBoardingDistance = float\.MaxValue' -or
@@ -99,15 +129,13 @@ if ($boardingSystems -match 'else if \(!passengersReady && !timedOut\)' -or
     $boardingSystems -notmatch 'm_SessionsThatSawAWaitingCim\+\+') {
     throw 'Completion gates must be measured independently; a chained counter hides every gate after the first.'
 }
-# Concurrent boarding is opt-in, and existing settings files must be migrated to match.
-if ($settings -match 'public bool EnableConcurrentBoarding \{ get; set; \} = true;') {
-    throw 'Concurrent boarding must stay opt-in.'
-}
+# Players auto-disabled by 1.5.1-1.5.3 are switched back on exactly once, because the reason for
+# disabling is fixed and they never chose it themselves.
 if ($settings -notmatch 'CurrentSettingsVersion' -or
     $settings -notmatch 'public int SettingsVersion' -or
     $mod -notmatch 'Settings\.SettingsVersion < ConcurrentBusBoardingSettings\.CurrentSettingsVersion' -or
-    $mod -notmatch 'Settings\.EnableConcurrentBoarding = false;') {
-    throw 'Updating players must be migrated to the opt-in default exactly once.'
+    $mod -notmatch 'Settings\.EnableConcurrentBoarding = true;') {
+    throw 'Players disabled by an earlier version must be migrated back exactly once.'
 }
 if ($settings -notmatch 'public bool EnableConcurrentBoarding' -or
     ($boardingSystems | Select-String -Pattern '!Mod\.Settings\.EnableConcurrentBoarding' -AllMatches).Matches.Count -lt 2) {
@@ -126,7 +154,6 @@ if ($boardingSystems -notmatch 'entry\.Value\.Contains\(slot\.m_Vehicle\)' -or
     $boardingSystems -notmatch '!BoardingHelpers\.ArePassengersReady\(EntityManager, slot\.m_Vehicle\)') {
     throw 'Stop-slot rotation must not strand a cim that is still climbing aboard the current bus.'
 }
-$repair = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingRepairSystem.cs"
 # Zone geometry walks route segment and path-element buffers and allocates, so it must be resolved
 # once per candidate stop, never once per bus, and never for a stop the mod will not manage.
 if ($boardingSystems -notmatch 'entry\.Value\.Count <= 1 && !hasSession' -or
@@ -160,8 +187,13 @@ if ($repair -notmatch 'SweepIntervalFrames') {
 # The sweep must never touch another transport mode's stop, and must never act on a single
 # observation, which races the game's own asynchronous EndBoarding and steals live boardings.
 if ($repair -notmatch 'IsPassengerBusStop\(EntityManager, stop\)' -or
-    $repair -notmatch 'm_StaleLastSweep\.Contains\(stop\)') {
+    $repair -notmatch '!immediate && !m_StaleLastSweep\.Contains\(stop\)') {
     throw 'The sweep must cover bus stops only and require two consecutive stale observations.'
+}
+# An explicit repair must free every blocked stop at once, not wait for a second observation.
+if ($repair -notmatch 'ClearStaleStopSlots\(true\)' -or
+    $repair -notmatch 'ClearStaleStopSlots\(false\)') {
+    throw 'An explicit repair must act immediately; only the routine sweep may defer.'
 }
 # Measurement disproved the reachability premise: concurrent buses board and unload normally at
 # zone distances, so admission must not reject a contained bus on distance alone.

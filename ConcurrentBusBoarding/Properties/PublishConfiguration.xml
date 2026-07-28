@@ -7,7 +7,7 @@ Concurrent Bus Boarding lets several buses use the same stop at the same time wh
 
 FEATURES
 
-- Optional: up to two buses board together at ordinary curbside stops. Switch it on in Options; it is off by default because a longer stop can make residents less likely to choose that line.
+- Up to two buses board together at ordinary curbside stops, and it can be switched off in Options at any time.
 - Pull-in bays use their full detected lane and fit as many buses as their usable length allows.
 - Buses keep their natural traffic spacing and remain stopped once boarding starts, even when the bus ahead leaves.
 - Waiting passengers are offered to active buses in round-robin order while the game keeps its normal route, fare, animation, and capacity checks.
@@ -36,9 +36,9 @@ Boarding behavior changes only passenger buses. The optional attractiveness sett
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.5.3" />
+	<ModVersion Value="1.6.0" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Greatly reduces the mod's simulation cost. Boarding-zone geometry was rebuilt for every bus in the city several times a second, walking each route's segment and path-element buffers; it is now resolved only for stops where two or more buses are actually present, and the working collections are reused rather than reallocated. On a large city the old behaviour was enough to make the simulation stutter, and the critical error some players saw in the log was the game reacting to that stutter rather than a fault of its own." />
+	<ChangeLog Value="Bus lines no longer lose their passengers over a long session. Holding a bus at a stop was counted by the game as part of that line's travel time, which is what it uses to decide whether residents choose the line at all, so the buses kept working while fewer and fewer people were routed to the stops. Every concurrent boarding session now gives that time back. The first city you load after updating has its stop service history cleared automatically, so lines already damaged by an earlier version recover on their own; Repair stuck bus stops does the same for any other city, immediately. Stops reserved by a bus that has been removed or replaced are released continuously. Concurrent boarding is on by default again, and cities where an earlier version switched it off automatically get it switched back on once. Adds a bus line report to the log for diagnosing service problems. With thanks to CheeseBunny_Gaming, Eiden3000 and Minimumderp for reporting the problem and sticking with the diagnosis." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />

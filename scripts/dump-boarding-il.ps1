@@ -114,7 +114,18 @@ $targets = @(
     # TryFindVehicle returns Null unless GetFreeSpace reports the right flag bits in z, so the
     # contents of that per-frame vehicle map decide whether a waiting cim can board at all.
     @{ Name = 'GetFreeSpace';              Args = @('-', 'BoardingJob::GetFreeSpace') },
-    @{ Name = 'ResidentAISystem.type';     Args = @('type:Game.Simulation.ResidentAISystem') }
+    @{ Name = 'ResidentAISystem.type';     Args = @('type:Game.Simulation.ResidentAISystem') },
+    # Why cims stop being routed to bus stops. Boarding works, so the cost of a bus leg must be
+    # rising. VehicleTiming is read by the native boarding job the mod bypasses on every session.
+    @{ Name = 'VehicleTiming.type';        Args = @('type:Game.Routes.VehicleTiming') },
+    @{ Name = 'writers.VehicleTiming';     Args = @('VehicleTiming') },
+    @{ Name = 'readers.AverageWaitingTime'; Args = @('m_AverageWaitingTime') },
+    @{ Name = 'PathfindTransportData.type'; Args = @('type:PathfindTransportData') },
+    @{ Name = 'writers.PathfindTransportData'; Args = @('PathfindTransportData') },
+    @{ Name = 'TransportLineSystem.type';  Args = @('type:TransportLineSystem') },
+    # The decisive link: how a stop's pathfind cost is derived from vehicle timing.
+    @{ Name = 'UpdateStopPathfind';        Args = @('-', 'TransportLineTickJob::UpdateStopPathfind') },
+    @{ Name = 'RefreshLineSegments';       Args = @('-', 'TransportLineTickJob::RefreshLineSegments') }
 )
 
 foreach ($target in $targets) {

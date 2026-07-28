@@ -35,6 +35,18 @@ namespace ConcurrentBusBoarding
         // to decide whether a cim takes the bus at all.
         internal const uint ManagedDepartureFrames = 64u;
 
+        // Time a bus is held beyond a normal dwell is time the game measures as line travel time,
+        // because VehicleTiming.m_AverageTravelTime is derived from the gap between departures. That
+        // average is then a floor on every segment's duration, so a held bus permanently inflates
+        // the line's duration and the pathfinder prices the line out. The mod repays the excess.
+        internal static float HeldTimeToRepay(uint frame, uint admittedFrame, uint nominalDwell)
+        {
+            if (admittedFrame == 0u || frame <= admittedFrame)
+                return 0f;
+            uint held = frame - admittedFrame;
+            return held > nominalDwell ? held - nominalDwell : 0f;
+        }
+
         internal static uint ClampManagedDeparture(uint frame, uint departureFrame)
         {
             uint latest = frame + ManagedDepartureFrames;

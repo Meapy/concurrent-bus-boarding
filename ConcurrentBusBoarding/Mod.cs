@@ -35,19 +35,25 @@ namespace ConcurrentBusBoarding
             AssetDatabase.global.LoadSettings("ConcurrentBusBoarding", Settings,
                 new ConcurrentBusBoardingSettings(this));
 
-            // One-time migration. Concurrent boarding is now opt-in, and a settings file written by
-            // an earlier version has no SettingsVersion field, so it deserializes as 0 and lands
-            // here. Anyone who had the feature on is switched off once and can turn it back on.
+            // One-time migration. 1.5.1 to 1.5.3 switched concurrent boarding off automatically,
+            // because holding a bus made its own line look slower to the pathfinder. 1.6.0 repays
+            // that time, so the reason is gone and those players are switched back on - they never
+            // chose off, the mod chose for them. Anyone who prefers it off can turn it off again
+            // and the choice sticks, because the version stamp only advances once.
             if (Settings.SettingsVersion < ConcurrentBusBoardingSettings.CurrentSettingsVersion)
             {
-                bool wasEnabled = Settings.EnableConcurrentBoarding;
-                Settings.EnableConcurrentBoarding = false;
+                bool wasDisabled = !Settings.EnableConcurrentBoarding;
+                Settings.EnableConcurrentBoarding = true;
                 Settings.SettingsVersion = ConcurrentBusBoardingSettings.CurrentSettingsVersion;
                 Settings.ApplyAndSave();
-                if (wasEnabled)
+                // A city saved by an earlier version carries inflated stop timing that keeps its
+                // lines unpopular even now the cause is fixed, so clear it once on the first city
+                // loaded after the upgrade. Other cities can be repaired from Options.
+                BoardingRepairSystem.RequestHistoryRefresh();
+                if (wasDisabled)
                 {
-                    Log.Info("Concurrent boarding is now opt-in and has been switched off. " +
-                        "Re-enable it in Options if you want it.");
+                    Log.Info("Concurrent boarding has been switched back on: the problem that " +
+                        "caused it to be disabled is fixed. Turn it off in Options if you prefer.");
                 }
             }
             CrashBreadcrumbs.Write("mod-onload after-settings");
