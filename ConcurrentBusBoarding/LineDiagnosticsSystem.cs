@@ -59,6 +59,10 @@ namespace ConcurrentBusBoarding
             s_ReportRequested = true;
         }
 
+        // Nothing here needs frame accuracy, and OnUpdate otherwise runs every frame only to compare
+        // two integers.
+        public override int GetUpdateInterval(SystemUpdatePhase phase) => 64;
+
         [Preserve]
         protected override void OnCreate()
         {
@@ -121,6 +125,10 @@ namespace ConcurrentBusBoarding
                 $"Stop diagnosis: {totalStops} stops, {stopsWithDemand} with cims waiting, " +
                 $"{stalledStops} stalled (waiting cims but nobody boarded since the last report).");
 
+            // Only when the player asks for a report. This walks every resident in the city, which
+            // is far too expensive to repeat on a timer.
+            if (manual)
+                ReportCims(frame);
 
             int logged = 0;
             foreach (string line in stalled)

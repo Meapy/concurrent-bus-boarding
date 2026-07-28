@@ -56,6 +56,14 @@ if ($repair -notmatch 'refreshHistory \? RefreshStopHistory\(\) : 0' -or
     $mod -notmatch 'BoardingRepairSystem\.RequestHistoryRefresh\(\)') {
     throw 'The service-history refresh must run once after an upgrade, not on every load.'
 }
+# Rebuilding zone geometry walks every bus's route segments, so it must not run when nothing will
+# be drawn, and the whole-city cim scan must not run on a timer.
+if ($zoneRenderer -notmatch 'anythingToDraw && m_RefreshIn-- <= 0') {
+    throw 'Zone geometry must only be rebuilt when a zone will actually be drawn.'
+}
+if ($diagnostics -notmatch 'if \(manual\)\s*\r?\n\s*ReportCims\(frame\)') {
+    throw 'The whole-city cim scan must only run when a report is explicitly requested.'
+}
 # Diagnosing lost ridership needs per-stop evidence over time, not only session counters.
 if ($diagnostics -notmatch 'm_SuccessAccumulation' -or
     $diagnostics -notmatch 'stalled' -or

@@ -16,6 +16,7 @@ clears the history a damaged city has already accumulated.
 - **Repair stuck bus stops** now also clears each stop's recorded service history and forces the line to be re-costed, so a city degraded by an earlier version recovers instead of staying unpopular. It acts immediately rather than gradually, and can be used on any other city.
 - Release stops reserved by a bus that has been removed or replaced, continuously rather than only when a city loads.
 - Report bus ridership, waiting passengers and per-stop service to the log, and add a **Write bus line report to log** action, to make this class of problem visible rather than invisible.
+- Further reduce the mod's cost. Boarding-zone geometry is no longer rebuilt for every bus in the city when no zone is on screen, which is the normal case with the default overlay setting; the diagnostic systems no longer run every frame; and the whole-city passenger scan now runs only when a report is requested rather than on a timer.
 
 With thanks to **CheeseBunny_Gaming**, **Eiden3000** and **Minimumderp** for reporting the
 problem and sticking with the diagnosis.

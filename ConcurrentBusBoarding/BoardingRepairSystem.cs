@@ -64,6 +64,9 @@ namespace ConcurrentBusBoarding
             s_RefreshHistoryRequested = true;
         }
 
+        // The sweep has its own 512-frame gate; there is no reason to tick every frame to reach it.
+        public override int GetUpdateInterval(SystemUpdatePhase phase) => 64;
+
         [Preserve]
         protected override void OnCreate()
         {

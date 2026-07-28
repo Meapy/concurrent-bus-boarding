@@ -51,8 +51,17 @@ namespace ConcurrentBusBoarding
             OverlayRenderSystem.Buffer buffer = m_Overlay.GetBuffer(out var bufferDependencies);
             bufferDependencies.Complete();
 
+            Entity selected = GetSelectedStop();
+            Entity editing = m_ZoneTool.EditingStop;
+            bool showSelectedOnly = Mod.Settings != null && Mod.Settings.OnlyShowSelectedStop;
+
+            // Rebuilding zone geometry walks every bus's route segments and path elements, so it is
+            // only worth doing when something will actually be drawn. In the default selected-only
+            // mode with no stop selected or being edited, nothing will be.
+            bool anythingToDraw = !showSelectedOnly || selected != Entity.Null || editing != Entity.Null;
+
             // ponytail: refresh periodically instead of tracking every network edit; the overlay may lag by at most one second.
-            if (m_RefreshIn-- <= 0)
+            if (anythingToDraw && m_RefreshIn-- <= 0)
             {
                 m_StaleZones.Clear();
                 foreach (KeyValuePair<Entity, BoardingZone> entry in m_Zones)
@@ -74,15 +83,13 @@ namespace ConcurrentBusBoarding
                 m_RefreshIn = 60;
             }
 
-            Entity selectedStop = GetSelectedStop();
-            if (selectedStop != Entity.Null)
-                TryGetObservedZone(selectedStop, out _);
-            bool selectedOnly = Mod.Settings != null && Mod.Settings.OnlyShowSelectedStop;
-            if (selectedOnly)
+            if (selected != Entity.Null)
+                TryGetObservedZone(selected, out _);
+            if (showSelectedOnly)
             {
-                DrawZone(buffer, selectedStop);
-                if (m_ZoneTool.EditingStop != selectedStop)
-                    DrawZone(buffer, m_ZoneTool.EditingStop);
+                DrawZone(buffer, selected);
+                if (editing != selected)
+                    DrawZone(buffer, editing);
                 return;
             }
             foreach (KeyValuePair<Entity, BoardingZone> entry in m_Zones)

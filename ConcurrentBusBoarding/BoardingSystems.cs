@@ -281,8 +281,7 @@ namespace ConcurrentBusBoarding
 
                 foreach (Entity bus in entry.Value)
                 {
-                    if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus) ||
-                        EntityManager.HasComponent<BoardingZoneApproach>(bus))
+                    if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus))
                         continue;
                     VehiclePublicTransport transport = EntityManager.GetComponentData<VehiclePublicTransport>(bus);
 
@@ -317,8 +316,7 @@ namespace ConcurrentBusBoarding
 
                 foreach (Entity bus in entry.Value)
                 {
-                    if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus) ||
-                        EntityManager.HasComponent<BoardingZoneApproach>(bus))
+                    if (EntityManager.HasComponent<ConcurrentBoardingActive>(bus))
                         continue;
 
                     bool closeToStop = hasZone && BoardingHelpers.IsCloseToStop(EntityManager, bus, zone);
