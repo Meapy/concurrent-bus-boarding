@@ -1,16 +1,19 @@
 <Publish>
 	<ModId Value="152153" />
 	<DisplayName Value="Concurrent Bus Boarding" />
-	<ShortDescription Value="Let multiple buses board and unload together at the same stop, with automatic and editable boarding zones." />
+	<ShortDescription Value="Let multiple buses board and unload together at the same stop instead of queueing one at a time, with automatic and editable boarding zones." />
 	<LongDescription>
-Concurrent Bus Boarding lets several buses use the same stop at the same time when there is enough road space. The stop is the forward edge of the boarding zone, buses queue naturally behind it, board and unload concurrently, then continue to their next stop when finished.
+Concurrent Bus Boarding lets several buses use one stop at the same time when there is enough road space. Normally a second bus must wait for the one ahead to finish and pull away, then drive up to the marker before it can do anything. With this mod it starts boarding as soon as it stops inside the boarding zone, so both buses load and unload together instead of the queue stalling behind a single bus.
+
+The stop is the forward edge of the boarding zone, buses queue naturally behind it, and each continues to its next stop once its own boarding is done.
 
 FEATURES
 
-- Up to two buses board together at ordinary curbside stops, and it can be switched off in Options at any time.
-- Pull-in bays use their full detected lane and fit as many buses as their usable length allows.
-- Buses keep their natural traffic spacing and remain stopped once boarding starts, even when the bus ahead leaves.
-- Waiting passengers are offered to active buses in round-robin order while the game keeps its normal route, fare, animation, and capacity checks.
+- Engages only when two or more buses are actually at the same stop. A bus alone at its stop is left entirely to the game, so on a quiet network you will not notice the mod at all.
+- Up to two buses board together at an ordinary curbside stop. Pull-in bays use their full detected lane and fit as many buses as their usable length allows.
+- Waiting passengers are shared between the boarding buses in rapid rotation, while the game keeps its normal route, fare, animation and capacity checks.
+- Buses keep their natural traffic spacing and hold their position once boarding starts, even when the bus ahead leaves.
+- Concurrent boarding can be switched off in Options at any time; the overlays, zone editor and repair action keep working either way.
 - Every served bus stop has a length control plus draggable rear-edge map handles for resizing its boarding zone.
 - Per-stop edits save with the city and can be reset to automatic detection at any time.
 - Boarding-zone overlays use each stop's line colour by default, with custom stop and whole-line colour wheels.
@@ -18,8 +21,9 @@ FEATURES
 - Options includes a confirmed action that resets every customized zone in the current city.
 - Boarding-zone overlays show only for the selected stop by default; this can be changed in Options.
 - Options includes a 50-200% public transport attractiveness slider. The 100% default preserves vanilla passenger-route costs; higher values make passenger public transport more attractive.
-- Options includes a 100-200% extra bus attractiveness slider, defaulting to 150%, that makes residents prefer buses specifically. It affects only route costs used exclusively by bus lines, so other transport types keep their normal costs.
-- Options includes a confirmed action that clears stuck boarding state from a city saved with an earlier version.
+- Options includes a 100-200% extra bus attractiveness slider. The 100% default changes nothing; higher values make residents prefer buses specifically, affecting only route costs used exclusively by bus lines, so other transport types keep their normal costs.
+- Options includes a confirmed Repair stuck bus stops action. It frees any stop still reserved by a bus that has gone, resets buses that can no longer accept passengers or depart, and clears each stop's recorded service history so its line is costed as if newly built. Use it whenever a line has stopped carrying passengers. The first city loaded after updating is repaired automatically.
+- Options includes a Write bus line report to log action, listing riders, waiting passengers and any stop that is not being served, for diagnosing service problems.
 
 HOW TO EDIT A STOP
 
@@ -27,7 +31,7 @@ Select a served bus stop and open Bus Boarding Zone. Use Length for precise adju
 
 SCOPE AND COMPATIBILITY
 
-Boarding behavior changes only passenger buses. The optional attractiveness setting applies to every passenger public transport type; cargo transport keeps its normal route costs. This is a code mod that integrates with the game's vehicle, passenger, and pathfinding ECS systems; it may require an update after a major game patch.
+Boarding behaviour changes only passenger buses. Of the two optional attractiveness sliders, the public transport one applies to every passenger transport type and the bus one only to bus lines; both default to 100%, which changes nothing, and cargo transport always keeps its normal route costs. This is a code mod that integrates with the game's vehicle, passenger and pathfinding ECS systems; it may require an update after a major game patch.
 	</LongDescription>
 	<Thumbnail Value="Properties/Thumbnail.png" />
 	<Screenshot Value="Properties/Screenshots/concurrent-boarding.jpg" />
