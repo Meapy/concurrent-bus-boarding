@@ -114,7 +114,39 @@ $targets = @(
     # TryFindVehicle returns Null unless GetFreeSpace reports the right flag bits in z, so the
     # contents of that per-frame vehicle map decide whether a waiting cim can board at all.
     @{ Name = 'GetFreeSpace';              Args = @('-', 'BoardingJob::GetFreeSpace') },
-    @{ Name = 'ResidentAISystem.type';     Args = @('type:Game.Simulation.ResidentAISystem') }
+    @{ Name = 'ResidentAISystem.type';     Args = @('type:Game.Simulation.ResidentAISystem') },
+    # Why cims stop being routed to bus stops. Boarding works, so the cost of a bus leg must be
+    # rising. VehicleTiming is read by the native boarding job the mod bypasses on every session.
+    @{ Name = 'VehicleTiming.type';        Args = @('type:Game.Routes.VehicleTiming') },
+    @{ Name = 'writers.VehicleTiming';     Args = @('VehicleTiming') },
+    @{ Name = 'readers.AverageWaitingTime'; Args = @('m_AverageWaitingTime') },
+    @{ Name = 'PathfindTransportData.type'; Args = @('type:PathfindTransportData') },
+    @{ Name = 'writers.PathfindTransportData'; Args = @('PathfindTransportData') },
+    @{ Name = 'TransportLineSystem.type';  Args = @('type:TransportLineSystem') },
+    # The decisive link: how a stop's pathfind cost is derived from vehicle timing.
+    @{ Name = 'UpdateStopPathfind';        Args = @('-', 'TransportLineTickJob::UpdateStopPathfind') },
+    @{ Name = 'RefreshLineSegments';       Args = @('-', 'TransportLineTickJob::RefreshLineSegments') },
+    # Where a waiting cim's standing position actually comes from. The mod writes m_QueueArea and the
+    # write lands, but the crowd does not move, so something else decides where a queued cim stands.
+    @{ Name = 'readers.QueueArea';         Args = @('m_QueueArea') },
+    @{ Name = 'writers.QueueEntity';       Args = @('m_QueueEntity') },
+    @{ Name = 'HumanCurrentLane.type';     Args = @('type:Game.Creatures.HumanCurrentLane') },
+    @{ Name = 'Queue.type';                Args = @('type:Game.Creatures.Queue') },
+    @{ Name = 'GetQueueArea';              Args = @('-', 'GetQueueArea') },
+    @{ Name = 'HumanNavigationSystem.type'; Args = @('type:Game.Simulation.HumanNavigationSystem') },
+    # There are two queue areas: HumanCurrentLane's, which this mod writes, and Creature's, which
+    # actually positions the cim. These two methods own the copy between them and decide whether a
+    # mod write survives the next resident tick.
+    @{ Name = 'TickQueue';                 Args = @('-', 'ResidentTickJob::TickQueue') },
+    @{ Name = 'SetQueuePosition';          Args = @('-', 'ResidentTickJob::SetQueuePosition') },
+    @{ Name = 'Creature.type';             Args = @('type:Game.Creatures.Creature') },
+    # Kept as the evidence trail for why waiting cims cannot be repositioned from a managed system.
+    # Measured: a written queue area persists but the cim ignores it, so the queue area only bounds
+    # where queuing is allowed. HumanNavigation carries the target the cim actually walks to, but
+    # HumanNavigationSystem owns it. See .agent/ridership-decay-analysis.md before re-attempting.
+    @{ Name = 'HumanNavigation.type';      Args = @('type:Game.Creatures.HumanNavigation') },
+    @{ Name = 'SetQueue';                  Args = @('-', 'CreatureUtils::SetQueue') },
+    @{ Name = 'writers.TargetPosition';    Args = @('m_TargetPosition') }
 )
 
 foreach ($target in $targets) {
@@ -123,7 +155,16 @@ foreach ($target in $targets) {
     $arguments = @($game) + $target.Args
     # A pattern with no matches produces no output, so write explicitly rather than piping,
     # otherwise the file is never created and the next read fails the whole run.
-    $result = & $scanner @arguments 2>&1
+    #
+    # One pattern that makes the scanner throw must not abort the remaining targets. A single bad
+    # entry once killed the run before the three dumps it was added for ever executed.
+    try {
+        $result = & $scanner @arguments 2>&1
+    }
+    catch {
+        Write-Warning "  scanner failed for $($target.Args -join ' '): $_"
+        $result = @()
+    }
     if ($null -eq $result) { $result = @() }
     Set-Content -Encoding UTF8 -Path $file -Value $result
     $lines = @($result).Count

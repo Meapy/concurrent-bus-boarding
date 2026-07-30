@@ -22,9 +22,17 @@ namespace ConcurrentBusBoarding
         {
         }
 
-        // Holding a bus at a stop takes slightly longer than the game's own boarding, and the game
-        // uses stop waiting times when deciding whether residents choose a line. If a busy network
-        // ever loses passengers, turning this off is the first thing to try - it takes effect
+        // Bumping this forces a one-time settings migration on next load. Existing settings files
+        // predate the field and deserialize it as 0, which is how an update reaches players who
+        // already have the feature switched on.
+        internal const int CurrentSettingsVersion = 2;
+
+        [SettingsUIHidden]
+        public int SettingsVersion { get; set; }
+
+        // On by default again from 1.6.0: the line time a held bus consumed is now repaid, so the
+        // feature no longer makes its own lines look slower to the pathfinder. If a network ever
+        // loses passengers, turning this off is still the first thing to try - it takes effect
         // immediately and leaves the overlays, zone editor and stuck-stop repair working.
         [SettingsUISection(MainSection, TransportGroup)]
         public bool EnableConcurrentBoarding { get; set; } = true;
@@ -42,7 +50,7 @@ namespace ConcurrentBusBoarding
         [SettingsUISection(MainSection, TransportGroup)]
         [SettingsUIButton]
         [SettingsUIConfirmation(null,
-            "Clear stuck boarding state from every bus stop and bus in this city? Use this if a city saved with an earlier version has stops that no longer board passengers.")]
+            "Free every stuck bus stop and bus in this city now? Use this if a line has stopped carrying passengers.")]
         public bool RepairBoardingState
         {
             set => BoardingRepairSystem.RequestRepair();
@@ -102,6 +110,7 @@ namespace ConcurrentBusBoarding
         public override void SetDefaults()
         {
             EnableConcurrentBoarding = true;
+            SettingsVersion = CurrentSettingsVersion;
             PublicTransportAttractiveness = 100;
             BusAttractiveness = 100;
             OnlyShowSelectedStop = true;
@@ -177,7 +186,7 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.EnableConcurrentBoarding)),
                     "Enable concurrent boarding" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.EnableConcurrentBoarding)),
-                    "Let a second bus board alongside the first when two are at the same stop. Turn off to leave every bus entirely to the game while keeping the overlays and zone editor. Takes effect immediately, so you can compare your city with it on and off." },
+                    "Let a second bus board alongside the first when two are at the same stop. Turn it off to leave every bus entirely to the game while keeping the overlays, zone editor and stuck-stop repair. Takes effect immediately, so you can compare your city with it on and off." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.BusAttractiveness)),
                     "Extra bus attractiveness" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.BusAttractiveness)),
@@ -185,11 +194,11 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ReportBusLines)),
                     "Write bus line report to log" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ReportBusLines)),
-                    "Write one line per bus route to the mod log: vehicles running, waiting passengers, average wait, boarding success rate, and any stop reserved by a bus that is not releasing it. Changes nothing in the city." },
+                    "Write a diagnosis to the mod log: how many bus stops have cims waiting, how many are stalled with nobody boarding, and for each stalled stop the state of its boarding slot and of every bus heading to it. Written automatically as well, so the log shows how it changes over time. Changes nothing in the city." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.RepairBoardingState)),
                     "Repair stuck bus stops" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.RepairBoardingState)),
-                    "Clear boarding state left behind in this city by an earlier version: stops still reserved for a bus that has gone, and buses that can no longer accept passengers or depart. Runs automatically once each time a city loads." },
+                    "Immediately free every bus stop still reserved for a bus that has gone, reset any bus that can no longer accept passengers or depart, and clear each stop's recorded service history so its line is costed as if newly built. Use this if a line has stopped carrying passengers; residents will start choosing it again rather than the line staying unpopular. Also runs automatically each time a city loads." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.OnlyShowSelectedStop)),
                     "Only show the selected stop" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.OnlyShowSelectedStop)),

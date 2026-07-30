@@ -14,6 +14,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $boardingSystems = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingSystems.cs"
 $settings = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoardingSettings.cs"
+$mod = Get-Content -Raw "$root\ConcurrentBusBoarding\Mod.cs"
 $zoneEditor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneEditorUISystem.cs"
 $zoneRenderer = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneRenderSystem.cs"
 $colorOverride = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneColorOverride.cs"
@@ -21,6 +22,8 @@ $customColor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneCustomC
 $transitAttractiveness = Get-Content -Raw "$root\ConcurrentBusBoarding\PublicTransportAttractivenessSystem.cs"
 $project = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoarding.csproj"
 $breadcrumbs = Get-Content -Raw "$root\ConcurrentBusBoarding\CrashBreadcrumbs.cs"
+$repair = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingRepairSystem.cs"
+$diagnostics = Get-Content -Raw "$root\ConcurrentBusBoarding\LineDiagnosticsSystem.cs"
 if ($boardingSystems -match 'm_DepartureFrame = math\.max') {
     throw 'A synthetic session must open its dwell window from the current frame, as native StartBoarding does.'
 }
@@ -36,6 +39,42 @@ if ($boardingSystems -match 'ShouldCloseDoors\([^)]*exchangeSettled') {
 # Inflated dwell raises a line's measured waiting time, which is what drives cims away from buses.
 if ($boardingSystems -notmatch 'BoardingPolicy\.ClampManagedDeparture\(') {
     throw 'A managed session must not inherit the native far-future departure frame.'
+}
+# Held time is measured by the game as line travel time and prices the line out of residents'
+# route choices, so every session must give it back.
+if ($boardingSystems -notmatch 'RepayHeldTime\(' -or
+    $boardingSystems -notmatch 'VehicleTiming' -or
+    $boardingSystems -notmatch 'HeldTimeToRepay\(') {
+    throw 'A managed session must repay the line time it consumed while holding a bus.'
+}
+if ($repair -notmatch 'RefreshStopHistory' -or
+    $repair -notmatch 'm_AverageTravelTime = 0f') {
+    throw 'Repair must clear the recorded service history that keeps a degraded line unpopular.'
+}
+# Clearing the history on every load would keep discarding the game's own honest measurements.
+if ($repair -notmatch 'refreshHistory \? RefreshStopHistory\(\) : 0' -or
+    $mod -notmatch 'BoardingRepairSystem\.RequestHistoryRefresh\(\)') {
+    throw 'The service-history refresh must run once after an upgrade, not on every load.'
+}
+# Rebuilding zone geometry walks every bus's route segments, so it must not run when nothing will
+# be drawn, and the whole-city cim scan must not run on a timer.
+if ($zoneRenderer -notmatch 'anythingToDraw && m_RefreshIn-- <= 0') {
+    throw 'Zone geometry must only be rebuilt when a zone will actually be drawn.'
+}
+if ($diagnostics -notmatch 'if \(manual\)\s*\r?\n\s*ReportCims\(frame\)') {
+    throw 'The whole-city cim scan must only run when a report is explicitly requested.'
+}
+# Diagnosing lost ridership needs per-stop evidence over time, not only session counters.
+if ($diagnostics -notmatch 'm_SuccessAccumulation' -or
+    $diagnostics -notmatch 'stalled' -or
+    $diagnostics -notmatch 'ReportIntervalFrames') {
+    throw 'Stop diagnosis must track per-stop boarding progress over time.'
+}
+# Emptier stops have two opposite causes. Only per-cim outcomes separate them.
+if ($diagnostics -notmatch 'gaveUp' -or
+    $diagnostics -notmatch 'arrived' -or
+    $diagnostics -notmatch 'riders=') {
+    throw 'Diagnosis must report cim arrivals, boardings, give-ups and live rider counts.'
 }
 if ($boardingSystems -notmatch 'm_DepartureFrame = m_SimulationSystem\.frameIndex \+ 64u' -or
     $boardingSystems -notmatch 'm_MaxBoardingDistance = float\.MaxValue' -or
@@ -98,6 +137,14 @@ if ($boardingSystems -match 'else if \(!passengersReady && !timedOut\)' -or
     $boardingSystems -notmatch 'm_SessionsThatSawAWaitingCim\+\+') {
     throw 'Completion gates must be measured independently; a chained counter hides every gate after the first.'
 }
+# Players auto-disabled by 1.5.1-1.5.3 are switched back on exactly once, because the reason for
+# disabling is fixed and they never chose it themselves.
+if ($settings -notmatch 'CurrentSettingsVersion' -or
+    $settings -notmatch 'public int SettingsVersion' -or
+    $mod -notmatch 'Settings\.SettingsVersion < ConcurrentBusBoardingSettings\.CurrentSettingsVersion' -or
+    $mod -notmatch 'Settings\.EnableConcurrentBoarding = true;') {
+    throw 'Players disabled by an earlier version must be migrated back exactly once.'
+}
 if ($settings -notmatch 'public bool EnableConcurrentBoarding' -or
     ($boardingSystems | Select-String -Pattern '!Mod\.Settings\.EnableConcurrentBoarding' -AllMatches).Matches.Count -lt 2) {
     throw 'Concurrent boarding must have a runtime kill switch that also releases active sessions.'
@@ -115,8 +162,21 @@ if ($boardingSystems -notmatch 'entry\.Value\.Contains\(slot\.m_Vehicle\)' -or
     $boardingSystems -notmatch '!BoardingHelpers\.ArePassengersReady\(EntityManager, slot\.m_Vehicle\)') {
     throw 'Stop-slot rotation must not strand a cim that is still climbing aboard the current bus.'
 }
-$mod = Get-Content -Raw "$root\ConcurrentBusBoarding\Mod.cs"
-$repair = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingRepairSystem.cs"
+# Zone geometry walks route segment and path-element buffers and allocates, so it must be resolved
+# once per candidate stop, never once per bus, and never for a stop the mod will not manage.
+if ($boardingSystems -notmatch 'entry\.Value\.Count <= 1 && !hasSession' -or
+    $boardingSystems -notmatch 'ObserveZone\(EntityManager, m_Zones, stop, bus\)') {
+    throw 'Boarding-zone geometry must be resolved per contended stop, after the single-bus gate.'
+}
+if ($boardingSystems -notmatch 'ReleaseStopLists\(\)' -or
+    $boardingSystems -notmatch 'm_ListPool') {
+    throw 'Per-update collections must be reused; this runs over every bus several times a second.'
+}
+# Structural changes inside GameSimulation break the game's own command-buffer acquisition.
+if ($mod -match 'UpdateAt<BoardingRepairSystem>\(SystemUpdatePhase\.GameSimulation\)' -or
+    $mod -match 'UpdateAt<LineDiagnosticsSystem>\(SystemUpdatePhase\.GameSimulation\)') {
+    throw 'Systems making structural changes must not run in the GameSimulation phase.'
+}
 if ($mod -notmatch 'UpdateAt<BoardingRepairSystem>' -or
     $repair -notmatch 'OnGameLoadingComplete' -or
     $repair -notmatch 'RequestRepair' -or
@@ -135,22 +195,33 @@ if ($repair -notmatch 'SweepIntervalFrames') {
 # The sweep must never touch another transport mode's stop, and must never act on a single
 # observation, which races the game's own asynchronous EndBoarding and steals live boardings.
 if ($repair -notmatch 'IsPassengerBusStop\(EntityManager, stop\)' -or
-    $repair -notmatch 'm_StaleLastSweep\.Contains\(stop\)') {
+    $repair -notmatch '!immediate && !m_StaleLastSweep\.Contains\(stop\)') {
     throw 'The sweep must cover bus stops only and require two consecutive stale observations.'
+}
+# An explicit repair must free every blocked stop at once, not wait for a second observation.
+if ($repair -notmatch 'ClearStaleStopSlots\(true\)' -or
+    $repair -notmatch 'ClearStaleStopSlots\(false\)') {
+    throw 'An explicit repair must act immediately; only the routine sweep may defer.'
 }
 # Measurement disproved the reachability premise: concurrent buses board and unload normally at
 # zone distances, so admission must not reject a contained bus on distance alone.
 if ($boardingSystems -match 'IsWithinPassengerReach') {
     throw 'Admission must not reject a contained bus on distance; measurement disproved that premise.'
 }
-# The spread system stays unregistered: its premise was disproven and displacing waiting cims
-# correlates with them abandoning the wait. If it is ever re-registered, LimitWaitingBoundsToReach
-# must bound it.
-if ($mod -match 'UpdateAfter<PassengerWaitingSpreadSystem') {
-    throw 'The passenger spread must stay unregistered; the native queue owns where cims wait.'
+# Spreading waiting cims along the zone was implemented and removed. Both fields that could position
+# a cim were measured: Creature.m_QueueArea persists but is ignored (it only bounds where queuing is
+# allowed), and HumanNavigation.m_TargetPosition is recomputed by HumanNavigationSystem if written
+# before it, while after it the queue link is already gone. Do not reintroduce this as a new formula.
+if (Test-Path "$root\ConcurrentBusBoarding\PassengerWaitingSpreadSystem.cs") {
+    throw 'PassengerWaitingSpreadSystem was removed: no managed system can position a waiting cim. See .agent/ridership-decay-analysis.md.'
 }
-if ($boardingSystems -notmatch 'LimitWaitingBoundsToReach') {
-    throw 'Keep the bounded waiting helper so any future spread cannot place cims outside the zone.'
+if ($settings -match 'SpreadWaitingPassengers') {
+    throw 'The passenger spread setting was removed along with the system that implemented it.'
+}
+if ($boardingSystems -match 'BoardingZoneApproachSystem' -or
+    $boardingSystems -match 'struct BoardingZoneApproach' -or
+    $boardingSystems -match 'struct BoardingZoneFallback') {
+    throw 'The approach system and its markers were removed; do not reintroduce them unregistered.'
 }
 if ($project -notmatch 'CbbObserverOnly' -or
     $project -notmatch 'CBB_OBSERVER_ONLY' -or
@@ -174,7 +245,7 @@ if ($boardingSystems -notmatch 'internal Entity Route;' -or
 if ($boardingSystems -notmatch 'ComponentType\.ReadOnly<CurrentRoute>\(\),') {
     throw 'Concurrent admission must reject buses without a native line association.'
 }
-if (($boardingSystems | Select-String -Pattern 'm_Buses = GetEntityQuery' -AllMatches).Matches.Count -ne 5 -or
+if (($boardingSystems | Select-String -Pattern 'm_Buses = GetEntityQuery' -AllMatches).Matches.Count -ne 4 -or
     ($boardingSystems | Select-String -Pattern 'ComponentType\.Exclude<Deleted>\(\)' -AllMatches).Matches.Count -lt 5 -or
     ($boardingSystems | Select-String -Pattern 'ComponentType\.Exclude<Game\.Tools\.Temp>\(\)' -AllMatches).Matches.Count -lt 5) {
     throw 'Simulation queries must exclude deleted and temporary buses and stops.'

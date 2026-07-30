@@ -47,28 +47,9 @@ internal static class BoardingPolicyCheck
         Expect(!BoardingPolicy.ShouldDrawZone(true, false, false), "hide unselected overlay");
         Expect(BoardingPolicy.ShouldDrawZone(true, true, false), "show selected overlay");
         Expect(BoardingPolicy.ShouldDrawZone(true, false, true), "show editing overlay");
-        float reachStart;
-        float reachEnd;
-        BoardingPolicy.LimitWaitingBoundsToReach(0.2f, 0.8f, 100f, 1, 20f, out reachStart, out reachEnd);
-        Expect(Near(reachStart, 0.6f) && Near(reachEnd, 0.8f),
-            "increasing waiting band is trimmed to the reachable distance");
-        BoardingPolicy.LimitWaitingBoundsToReach(0.2f, 0.8f, 100f, -1, 20f, out reachStart, out reachEnd);
-        Expect(Near(reachStart, 0.2f) && Near(reachEnd, 0.4f),
-            "decreasing waiting band is trimmed to the reachable distance");
-        BoardingPolicy.LimitWaitingBoundsToReach(0.7f, 0.8f, 100f, 1, 20f, out reachStart, out reachEnd);
-        Expect(Near(reachStart, 0.7f) && Near(reachEnd, 0.8f),
-            "a short zone is never widened by the reach limit");
-        BoardingPolicy.LimitWaitingBoundsToReach(0.2f, 0.8f, 0f, 1, 20f, out reachStart, out reachEnd);
-        Expect(Near(reachStart, 0.2f) && Near(reachEnd, 0.8f),
-            "an invalid lane length leaves the waiting band untouched");
-        Expect(Near(BoardingPolicy.WaitingPosition(0.2f, 0.8f, 1, 0f), 0.8f),
-            "increasing waiting starts at zone front");
-        Expect(Near(BoardingPolicy.WaitingPosition(0.2f, 0.8f, -1, 0f), 0.2f),
-            "decreasing waiting starts at zone front");
-        Expect(Near(BoardingPolicy.WaitingPosition(0.2f, 0.8f, 1, 0.5f), 0.65f),
-            "waiting crowd is biased toward the front");
-        Expect(Near(BoardingPolicy.WaitingPosition(0.2f, 0.8f, -1, 1f), 0.8f),
-            "waiting crowd still spans the full zone");
+        // The waiting-band and waiting-position helpers were removed with the passenger spread. The
+        // spread could never move a cim: Creature.m_QueueArea is honoured as a bound but ignored as a
+        // position, and HumanNavigation.m_TargetPosition is owned by HumanNavigationSystem.
         Expect(BoardingPolicy.PreferZoneCandidate(20f, false, false, 2f, false, false), "lane nearest the stop wins");
         Expect(!BoardingPolicy.PreferZoneCandidate(2f, false, false, 20f, true, false), "distant junction cannot replace stop lane");
         Expect(BoardingPolicy.PreferZoneCandidate(2f, false, false, 2f, true, false), "equally close pull-in lane wins");

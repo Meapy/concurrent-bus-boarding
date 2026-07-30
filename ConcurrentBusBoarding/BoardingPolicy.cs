@@ -9,10 +9,10 @@ namespace ConcurrentBusBoarding
         internal const float BoardingSpeedTolerance = 1f;
         internal const float BoardingHeadingTolerance = 0.9f;
         internal const float PhysicalLaneCaptureDistance = 40f;
-        // How far back along the zone waiting cims are spread from the stop marker. This was briefly
-        // also used to reject distant buses from admission, on the theory that they were unboardable.
-        // Measurement disproved that - concurrent buses board and unload normally at zone distances -
-        // so the admission gate was reverted and this now bounds only the waiting band.
+        // How far a cim can reasonably be from a bus and still board it. This was briefly also used to
+        // reject distant buses from admission, on the theory that they were unboardable. Measurement
+        // disproved that - concurrent buses board and unload normally at zone distances - so the
+        // admission gate was reverted.
         internal const float PassengerReachDistance = 20f;
         internal const float MinimumCustomZoneLength = 6f;
         internal const float MaximumCustomZoneLength = 200f;
@@ -34,6 +34,18 @@ namespace ConcurrentBusBoarding
         // inflated dwell raises the line's measured waiting time, which is what the pathfinder uses
         // to decide whether a cim takes the bus at all.
         internal const uint ManagedDepartureFrames = 64u;
+
+        // Time a bus is held beyond a normal dwell is time the game measures as line travel time,
+        // because VehicleTiming.m_AverageTravelTime is derived from the gap between departures. That
+        // average is then a floor on every segment's duration, so a held bus permanently inflates
+        // the line's duration and the pathfinder prices the line out. The mod repays the excess.
+        internal static float HeldTimeToRepay(uint frame, uint admittedFrame, uint nominalDwell)
+        {
+            if (admittedFrame == 0u || frame <= admittedFrame)
+                return 0f;
+            uint held = frame - admittedFrame;
+            return held > nominalDwell ? held - nominalDwell : 0f;
+        }
 
         internal static uint ClampManagedDeparture(uint frame, uint departureFrame)
         {
@@ -101,32 +113,6 @@ namespace ConcurrentBusBoarding
         internal static bool ShouldDrawZone(bool selectedOnly, bool selected, bool editing)
         {
             return !selectedOnly || selected || editing;
-        }
-
-        // Waiting cims spread along the zone so they can reach concurrent buses, but never past the
-        // band a bus is allowed to be admitted in. Otherwise the spread just moves the unreachable
-        // problem onto the cims instead of the buses.
-        internal static void LimitWaitingBoundsToReach(float start, float end, float laneLength,
-            int direction, float reachDistance, out float limitedStart, out float limitedEnd)
-        {
-            limitedStart = start;
-            limitedEnd = end;
-            if (laneLength <= 0f)
-                return;
-            float range = reachDistance / laneLength;
-            if (direction >= 0)
-                limitedStart = end - range > start ? end - range : start;
-            else
-                limitedEnd = start + range < end ? start + range : end;
-        }
-
-        internal static float WaitingPosition(float start, float end, int direction, float unit)
-        {
-            float distanceFromFront = Clamp(unit, 0f, 1f);
-            distanceFromFront *= distanceFromFront;
-            return direction >= 0
-                ? end - (end - start) * distanceFromFront
-                : start + (end - start) * distanceFromFront;
         }
 
         internal static bool PreferZoneCandidate(float currentDistance, bool currentPullIn, bool currentPhysical,

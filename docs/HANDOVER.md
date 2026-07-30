@@ -2,7 +2,17 @@
 
 ## Release candidate
 
-Version 1.4.2 is the current release candidate for Cities: Skylines II 1.6.0.
+Version 1.6.1 is the current release candidate for Cities: Skylines II 1.6.0.
+
+> Version 1.6.1 removes the **Spread waiting passengers** option and the system behind it. It was a no-op: the game
+> owns where a waiting cim stands. `Creature.m_QueueArea` persists when a mod writes it but only bounds where queuing
+> is permitted, and `HumanNavigation.m_TargetPosition` is recomputed by `HumanNavigationSystem` every frame. The full
+> measurements are in `.agent/ridership-decay-analysis.md`; a policy check now fails if the system reappears.
+
+> Version 1.6.0 stops bus lines losing their passengers over a long session. Holding a bus inflated that line's
+> recorded travel time, which the game uses to decide whether residents pick the line at all, so boarding kept working
+> while fewer cims were routed to the stops. Every concurrent session now repays the time it consumed, stale stop
+> reservations are released continuously, and a first load after updating clears damaged stop service history.
 
 > Version 1.4.2 fixes the public transport attractiveness slider's runtime scheduling. It now waits for loaded passenger
 > pathfind data during normal simulation, refreshes route costs before resident path selection, and logs the saved

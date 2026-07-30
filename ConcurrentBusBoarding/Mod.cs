@@ -34,6 +34,28 @@ namespace ConcurrentBusBoarding
             GameManager.instance.localizationManager.AddSource("en-US", new SettingsLocale(Settings));
             AssetDatabase.global.LoadSettings("ConcurrentBusBoarding", Settings,
                 new ConcurrentBusBoardingSettings(this));
+
+            // One-time migration. 1.5.1 to 1.5.3 switched concurrent boarding off automatically,
+            // because holding a bus made its own line look slower to the pathfinder. 1.6.0 repays
+            // that time, so the reason is gone and those players are switched back on - they never
+            // chose off, the mod chose for them. Anyone who prefers it off can turn it off again
+            // and the choice sticks, because the version stamp only advances once.
+            if (Settings.SettingsVersion < ConcurrentBusBoardingSettings.CurrentSettingsVersion)
+            {
+                bool wasDisabled = !Settings.EnableConcurrentBoarding;
+                Settings.EnableConcurrentBoarding = true;
+                Settings.SettingsVersion = ConcurrentBusBoardingSettings.CurrentSettingsVersion;
+                Settings.ApplyAndSave();
+                // A city saved by an earlier version carries inflated stop timing that keeps its
+                // lines unpopular even now the cause is fixed, so clear it once on the first city
+                // loaded after the upgrade. Other cities can be repaired from Options.
+                BoardingRepairSystem.RequestHistoryRefresh();
+                if (wasDisabled)
+                {
+                    Log.Info("Concurrent boarding has been switched back on: the problem that " +
+                        "caused it to be disabled is fixed. Turn it off in Options if you prefer.");
+                }
+            }
             CrashBreadcrumbs.Write("mod-onload after-settings");
 #if CBB_OBSERVER_ONLY
             Log.Warn("Observer-only diagnostic build: no simulation systems are registered. " +
@@ -41,20 +63,21 @@ namespace ConcurrentBusBoarding
 #else
             updateSystem.UpdateBefore<PublicTransportAttractivenessSystem, ResidentAISystem>(
                 SystemUpdatePhase.GameSimulation);
-            // ponytail: no approach/front-position or passenger-spread system; native traffic owns
-            // movement and the native queue owns where cims wait. The spread was briefly registered
-            // on the theory that concurrent buses were unreachable; measurement disproved that
-            // (buses board and unload normally at zone distances), so its only remaining effect was
-            // to displace waiting cims from their stop, which correlates with cims abandoning the
-            // wait. Do not re-register it without evidence that waiting position is the problem.
+            // No approach/front-position or passenger-spread system: native traffic owns movement and
+            // the native queue owns where cims wait. Spreading waiting cims along the boarding zone
+            // was attempted and removed; see .agent/ridership-decay-analysis.md for the measurements.
+            // Both candidate fields were tested and neither can position a cim from a managed system,
+            // so do not reintroduce this without a working mechanism rather than a new formula.
             BoardingSystemRegistrationSystem.Configure(updateSystem);
             updateSystem.UpdateAt<BoardingSystemRegistrationSystem>(SystemUpdatePhase.Modification1);
             updateSystem.UpdateAfter<BoardingHoldSystem, CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
 #endif
-            // Registered in observer-only builds too: repairing residue left by earlier versions is
-            // independent of whether concurrent boarding is active.
-            updateSystem.UpdateAt<BoardingRepairSystem>(SystemUpdatePhase.GameSimulation);
-            updateSystem.UpdateAt<LineDiagnosticsSystem>(SystemUpdatePhase.GameSimulation);
+            // Modification1, not GameSimulation: both perform structural changes, and doing that
+            // inside the simulation phase makes the game's own UpdateGroupSystem fail to obtain an
+            // EntityCommandBuffer. Registered in observer-only builds too, because repairing residue
+            // left by earlier versions is independent of whether concurrent boarding is active.
+            updateSystem.UpdateAt<BoardingRepairSystem>(SystemUpdatePhase.Modification1);
+            updateSystem.UpdateAt<LineDiagnosticsSystem>(SystemUpdatePhase.Modification1);
             updateSystem.UpdateAt<BoardingZoneToolSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAt<BoardingZoneRenderSystem>(SystemUpdatePhase.Rendering);
             updateSystem.UpdateAt<BoardingZoneEditorUISystem>(SystemUpdatePhase.UIUpdate);
@@ -159,6 +182,9 @@ namespace ConcurrentBusBoarding
             s_UpdateSystem = updateSystem;
         }
 
+        // Deferred to the first Modification1 update so every other mod's OnLoad has completed and
+        // All Aboard's replacement car AI can be detected. Shipped in 1.4.1; leave the timing alone
+        // unless there is direct evidence against it.
         protected override void OnUpdate()
         {
             if (s_UpdateSystem != null)
