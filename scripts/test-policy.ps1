@@ -208,14 +208,20 @@ if ($repair -notmatch 'ClearStaleStopSlots\(true\)' -or
 if ($boardingSystems -match 'IsWithinPassengerReach') {
     throw 'Admission must not reject a contained bus on distance; measurement disproved that premise.'
 }
-# The spread system stays unregistered: its premise was disproven and displacing waiting cims
-# correlates with them abandoning the wait. If it is ever re-registered, LimitWaitingBoundsToReach
-# must bound it.
-if ($mod -match 'UpdateAfter<PassengerWaitingSpreadSystem') {
-    throw 'The passenger spread must stay unregistered; the native queue owns where cims wait.'
+# Spreading waiting cims along the zone was implemented and removed. Both fields that could position
+# a cim were measured: Creature.m_QueueArea persists but is ignored (it only bounds where queuing is
+# allowed), and HumanNavigation.m_TargetPosition is recomputed by HumanNavigationSystem if written
+# before it, while after it the queue link is already gone. Do not reintroduce this as a new formula.
+if (Test-Path "$root\ConcurrentBusBoarding\PassengerWaitingSpreadSystem.cs") {
+    throw 'PassengerWaitingSpreadSystem was removed: no managed system can position a waiting cim. See .agent/ridership-decay-analysis.md.'
 }
-if ($boardingSystems -notmatch 'LimitWaitingBoundsToReach') {
-    throw 'Keep the bounded waiting helper so any future spread cannot place cims outside the zone.'
+if ($settings -match 'SpreadWaitingPassengers') {
+    throw 'The passenger spread setting was removed along with the system that implemented it.'
+}
+if ($boardingSystems -match 'BoardingZoneApproachSystem' -or
+    $boardingSystems -match 'struct BoardingZoneApproach' -or
+    $boardingSystems -match 'struct BoardingZoneFallback') {
+    throw 'The approach system and its markers were removed; do not reintroduce them unregistered.'
 }
 if ($project -notmatch 'CbbObserverOnly' -or
     $project -notmatch 'CBB_OBSERVER_ONLY' -or
@@ -239,7 +245,7 @@ if ($boardingSystems -notmatch 'internal Entity Route;' -or
 if ($boardingSystems -notmatch 'ComponentType\.ReadOnly<CurrentRoute>\(\),') {
     throw 'Concurrent admission must reject buses without a native line association.'
 }
-if (($boardingSystems | Select-String -Pattern 'm_Buses = GetEntityQuery' -AllMatches).Matches.Count -ne 5 -or
+if (($boardingSystems | Select-String -Pattern 'm_Buses = GetEntityQuery' -AllMatches).Matches.Count -ne 4 -or
     ($boardingSystems | Select-String -Pattern 'ComponentType\.Exclude<Deleted>\(\)' -AllMatches).Matches.Count -lt 5 -or
     ($boardingSystems | Select-String -Pattern 'ComponentType\.Exclude<Game\.Tools\.Temp>\(\)' -AllMatches).Matches.Count -lt 5) {
     throw 'Simulation queries must exclude deleted and temporary buses and stops.'

@@ -63,12 +63,11 @@ namespace ConcurrentBusBoarding
 #else
             updateSystem.UpdateBefore<PublicTransportAttractivenessSystem, ResidentAISystem>(
                 SystemUpdatePhase.GameSimulation);
-            // ponytail: no approach/front-position or passenger-spread system; native traffic owns
-            // movement and the native queue owns where cims wait. The spread was briefly registered
-            // on the theory that concurrent buses were unreachable; measurement disproved that
-            // (buses board and unload normally at zone distances), so its only remaining effect was
-            // to displace waiting cims from their stop, which correlates with cims abandoning the
-            // wait. Do not re-register it without evidence that waiting position is the problem.
+            // No approach/front-position or passenger-spread system: native traffic owns movement and
+            // the native queue owns where cims wait. Spreading waiting cims along the boarding zone
+            // was attempted and removed; see .agent/ridership-decay-analysis.md for the measurements.
+            // Both candidate fields were tested and neither can position a cim from a managed system,
+            // so do not reintroduce this without a working mechanism rather than a new formula.
             BoardingSystemRegistrationSystem.Configure(updateSystem);
             updateSystem.UpdateAt<BoardingSystemRegistrationSystem>(SystemUpdatePhase.Modification1);
             updateSystem.UpdateAfter<BoardingHoldSystem, CarNavigationSystem>(SystemUpdatePhase.GameSimulation);

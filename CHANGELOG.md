@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.1 - 2026-07-29
+
+Housekeeping after the 1.6.0 fix. No change to boarding behaviour.
+
+- Remove the **Spread waiting passengers** option and the system behind it. It never had any
+  effect: the game decides where a waiting cim stands, and a mod cannot move it. The queue area
+  a mod can write only controls where queuing is permitted, and the cim's navigation target is
+  recomputed by the game every frame. See `.agent/ridership-decay-analysis.md` for the
+  measurements, so this is not attempted again.
+- Remove the helpers and tests that existed only to serve that option.
+
 ## 1.6.0 - 2026-07-28
 
 Bus lines no longer lose their passengers over a long session.
@@ -16,6 +27,8 @@ clears the history a damaged city has already accumulated.
 - **Repair stuck bus stops** now also clears each stop's recorded service history and forces the line to be re-costed, so a city degraded by an earlier version recovers instead of staying unpopular. It acts immediately rather than gradually, and can be used on any other city.
 - Release stops reserved by a bus that has been removed or replaced, continuously rather than only when a city loads.
 - Report bus ridership, waiting passengers and per-stop service to the log, and add a **Write bus line report to log** action, to make this class of problem visible rather than invisible.
+- Add an optional **Spread waiting passengers along the zone** setting, off by default. Waiting passengers stand back along the boarding zone instead of crowding at the stop marker, so a second bus is not loading from a queue standing ahead of it. Appearance only, and it applies only where two buses are actually sharing a stop.
+- Remove a system that had been left in place but never ran, along with unused markers and helpers.
 - Further reduce the mod's cost. Boarding-zone geometry is no longer rebuilt for every bus in the city when no zone is on screen, which is the normal case with the default overlay setting; the diagnostic systems no longer run every frame; and the whole-city passenger scan now runs only when a report is requested rather than on a timer.
 
 With thanks to **CheeseBunny_Gaming**, **Eiden3000** and **Minimumderp** for reporting the

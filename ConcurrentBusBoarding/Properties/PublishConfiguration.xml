@@ -14,6 +14,7 @@ FEATURES
 - Waiting passengers are shared between the boarding buses in rapid rotation, while the game keeps its normal route, fare, animation and capacity checks.
 - Buses keep their natural traffic spacing and hold their position once boarding starts, even when the bus ahead leaves.
 - Concurrent boarding can be switched off in Options at any time; the overlays, zone editor and repair action keep working either way.
+- An optional setting lets waiting passengers stand back along the boarding zone instead of crowding at the stop marker, so a second bus is not loading from a queue standing ahead of it. Appearance only, off by default.
 - Every served bus stop has a length control plus draggable rear-edge map handles for resizing its boarding zone.
 - Per-stop edits save with the city and can be reset to automatic detection at any time.
 - Boarding-zone overlays use each stop's line colour by default, with custom stop and whole-line colour wheels.
@@ -40,9 +41,9 @@ Boarding behaviour changes only passenger buses. Of the two optional attractiven
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.6.0" />
+	<ModVersion Value="1.6.1" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Bus lines no longer lose their passengers over a long session. Holding a bus at a stop was counted by the game as part of that line's travel time, which is what it uses to decide whether residents choose the line at all, so the buses kept working while fewer and fewer people were routed to the stops. Every concurrent boarding session now gives that time back. The first city you load after updating has its stop service history cleared automatically, so lines already damaged by an earlier version recover on their own; Repair stuck bus stops does the same for any other city, immediately. Stops reserved by a bus that has been removed or replaced are released continuously. Concurrent boarding is on by default again, and cities where an earlier version switched it off automatically get it switched back on once. Adds a bus line report to the log for diagnosing service problems." />
+	<ChangeLog Value="Housekeeping release. Removes an unfinished option that tried to spread waiting passengers along the boarding zone: the game positions waiting cims itself and does not allow a mod to move them, so the setting never had any effect. Everything the 1.6.0 fix does is unchanged." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />

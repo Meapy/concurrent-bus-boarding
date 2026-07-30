@@ -741,3 +741,50 @@ The cheapest decisive check is a counter, not a gameplay session.
 Re-verify the `StartBoarding` / `StopBoarding` / `m_DepartureFrame` reasoning directly
 against the installed `Game.dll` (and All Aboard's `PatchedTransportCarAISystem`) before
 implementing, since the whole fix rests on it and this pass could not read the assemblies.
+
+## Why waiting cims cannot be spread along the boarding zone
+
+Settled by measurement, not argument. Do not reopen this with a new formula.
+
+The feature was rebuilt and instrumented nine times. Three separate defects were found and
+fixed along the way, and the crowd still never moved:
+
+1. **`HumanCurrentLane.m_QueueEntity` is the route waypoint, not the stop.** It carries
+   `[AccessLane, Connected, Owner, Position, PrefabRef, RouteLane, Simulate, VehicleTiming,
+   WaitingPassengers, Waypoint]`. Every zone lookup failed for every cim, so the position code
+   never executed at all. The stop is reached via `Connected.m_Connected`. Telemetry:
+   `noZone` exactly equalled `waiting` until this was fixed.
+2. **`ResidentAISystem` overwrites `HumanCurrentLane.m_QueueArea` every tick.**
+   `ResidentTickJob::SetQueuePosition` recomputes it from the stop's own transform via
+   `CreatureUtils.GetQueueArea`, then `TickQueue` copies it into `Creature.m_QueueArea`
+   (a pure copy, IL_009f-00a7). Writing only the lane field is discarded before use.
+3. **The front-weighted spread curve was itself the bunching.** `(x + x^2)/2` has mean 0.42,
+   so on a 26 m zone the whole crowd sat within ~11 m of the marker. Measured: cims stood
+   9.7 m back on average, which is exactly what the curve requested.
+
+After all three were fixed the writes landed and persisted, and the cims still ignored them:
+
+- `Creature.m_QueueArea` **persists** - only 2% of cims (`reset=3740` of `moved=185530`) had
+  it reset between visits - and is still ignored. `avgToTarget` (16.8 m) matched `avgOffset`
+  (16.4 m): the cim never moved toward its assigned spot at all. The queue area bounds *where
+  queuing is permitted*, it does not position anyone. `CreatureCollisionIterator::CheckQueue`
+  reads it for queue ordering and collision only.
+- `HumanNavigation.m_TargetPosition` is the value a cim actually walks to, but its only
+  writers are `InitializeCreaturesJob` and `HumanNavigationSystem`'s `UpdateStumbling` and
+  `UpdateNavigationTarget`. Written *before* that system it is recomputed the same frame.
+  Written *after* it, the queue link is already torn down: `moved` collapsed from ~180k to
+  ~17k per report, `nullStop` rose to ~165k, `zonedStops` fell from 85 to 15, and
+  `m_QueueEntity` pointed at a `PedestrianLane`. The target was ignored either way.
+
+A Harmony patch on `ResidentTickJob::SetQueuePosition` is not a remaining option worth
+trying: these are Burst-compiled jobs, so the native path would not go through a patched
+managed method, and the patch would silently do nothing.
+
+Visual confirmation: with the overlay on, the crowd is a symmetric blob ~14 m across centred
+on the stop marker and spilling outside the zone on the near side, while the 24 m zone sits
+empty. That is the shape of the native queue sphere, not of any distribution this mod wrote.
+
+`PassengerWaitingSpreadSystem`, the `SpreadWaitingPassengers` setting,
+`WaitingSpreadMaxDistance`, `WaitingSpreadFraction`, `WaitingPosition`,
+`LimitWaitingBoundsToReach` and `TryGetPositionAlongZone` were all removed. A policy
+assertion in `scripts/test-policy.ps1` fails if the system file reappears.
