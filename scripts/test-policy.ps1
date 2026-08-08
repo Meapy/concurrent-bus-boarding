@@ -17,6 +17,7 @@ $settings = Get-Content -Raw "$root\ConcurrentBusBoarding\ConcurrentBusBoardingS
 $mod = Get-Content -Raw "$root\ConcurrentBusBoarding\Mod.cs"
 $zoneEditor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneEditorUISystem.cs"
 $zoneRenderer = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneRenderSystem.cs"
+$zoneTool = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneToolSystem.cs"
 $colorOverride = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneColorOverride.cs"
 $customColor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneCustomColor.cs"
 $transitAttractiveness = Get-Content -Raw "$root\ConcurrentBusBoarding\PublicTransportAttractivenessSystem.cs"
@@ -60,6 +61,57 @@ if ($repair -notmatch 'refreshHistory \? RefreshStopHistory\(\) : 0' -or
 # be drawn, and the whole-city cim scan must not run on a timer.
 if ($zoneRenderer -notmatch 'anythingToDraw && m_RefreshIn-- <= 0') {
     throw 'Zone geometry must only be rebuilt when a zone will actually be drawn.'
+}
+# "When something will be drawn" is not enough on its own: selected-only mode draws at most the
+# selected and editing stops, so an unrestricted scan resolved every bus in the city and discarded it.
+if ($zoneRenderer -notmatch 'showSelectedOnly \? selected : Entity\.Null' -or
+    $zoneRenderer -notmatch 'showSelectedOnly \? editing : Entity\.Null') {
+    throw 'Selected-only display must restrict the observed-zone scan to the stops it can draw.'
+}
+if ($boardingSystems -notmatch 'internal static void FindObservedZones' -or
+    $boardingSystems -notmatch 'restricted && stop != restrictToA && stop != restrictToB') {
+    throw 'FindObservedZones must accept a stop restriction and fill a reused dictionary.'
+}
+# The Length slider fires SetZone on every frame of a drag, and a length override is read from its
+# component on every draw. Invalidating resolved geometry there rebuilt zones for the whole city,
+# every frame, for as long as the handle was held.
+if ($zoneEditor -match '\bRefresh\(\);') {
+    throw 'Use RefreshBinding, RefreshColors, or RefreshGeometry so a length or colour change cannot rebuild geometry.'
+}
+if ($zoneEditor -notmatch 'private void RefreshBinding\(\) => m_Frame = UpdateEveryFrames;' -or
+    $zoneEditor -notmatch 'if \(wasCustom\)\s+RefreshBinding\(\);') {
+    throw 'A Length drag on an already-custom stop must refresh only the UI binding, not the cached geometry.'
+}
+# The rear walk collects only what the zone can display, so the automatic-to-custom transition has to
+# re-resolve once - and only once, or the drag is back to rebuilding geometry every frame.
+if ($boardingSystems -notmatch 'zone\.IsCustom\s*\r?\n?\s*\? BoardingPolicy\.MaximumCustomZoneLength' -or
+    $boardingSystems -notmatch 'available < needed') {
+    throw 'The rear-geometry walk must be bounded by the requested zone length, not the 200 m maximum.'
+}
+if ($boardingSystems -notmatch 'chainEstablished && zone\.Pieces\.Count == piecesBefore' -or
+    $boardingSystems -notmatch 'examined < MaximumRearWalkElements') {
+    throw 'The rear-geometry walk must stop when the contiguous chain breaks, and have a hard element bound.'
+}
+if ($zoneTool -notmatch 'EntityManager\.AddComponentData\(m_EditingStop, custom\);\s*\r?\n\s*renderSystem\.Invalidate\(\);') {
+    throw 'A map drag that first makes a zone custom must re-resolve geometry once, on that transition.'
+}
+# Failed resolution is not stored in m_Zones, so without a negative cache an unresolvable selected
+# stop re-ran the whole route walk on every frame it stayed selected.
+if ($zoneRenderer -notmatch 'm_Unresolved\.Contains\(stop\)' -or
+    $zoneRenderer -notmatch 'm_Unresolved\.Add\(stop\)') {
+    throw 'A stop that cannot be resolved must not be re-resolved every frame while it is selected.'
+}
+if ($zoneRenderer -notmatch '!m_Zones\.ContainsKey\(selected\)\)\s*\r?\n\s*TryGetObservedZone\(selected, out _\)') {
+    throw 'The selected stop must only be resolved on demand; DrawZone already validates a cached zone.'
+}
+# An overlay colour is resolved per drawn zone per frame and walks the stop's ConnectedRoute buffer.
+if ($zoneRenderer -notmatch 'm_OverlayColors\.TryGetValue\(stop, out UnityColor cached\)' -or
+    $zoneRenderer -notmatch 'internal void InvalidateColors\(\) => m_OverlayColors\.Clear\(\);') {
+    throw 'Overlay colours must be memoized between invalidations rather than re-resolved every frame.'
+}
+# A cached physical observation outlives its selection deliberately, so the cache needs a bound.
+if ($zoneRenderer -notmatch 'MaxCachedZones') {
+    throw 'The observed-zone cache must be bounded; it is walked in full by every prune.'
 }
 if ($diagnostics -notmatch 'if \(manual\)\s*\r?\n\s*ReportCims\(frame\)') {
     throw 'The whole-city cim scan must only run when a report is explicitly requested.'

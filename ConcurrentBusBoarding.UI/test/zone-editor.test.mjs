@@ -42,6 +42,21 @@ assert.ok(segmentUses.length > 0, "segment class should be referenced");
 assert.doesNotMatch(moduleText, /segmentedButton/,
   "the merged two-label button should be gone");
 
+// An InfoRow's right slot is a PassThroughFocusController and hosts one focusable child. Two game
+// Buttons in it log "Cannot register second focus key" on every render, with a managed stack capture.
+assert.match(moduleText, /focusKey/,
+  "segments must opt out of focus registration when the sentinel is available");
+assert.match(moduleText, /segmentPlain/,
+  "there must be a non-focusable fallback for when the sentinel is not found");
+assert.match(moduleText, /common\\\/focus\\\//,
+  "the focus module must be discovered rather than assumed");
+
+// Coherent GT logs these as unsupported or unparseable, so they must not appear in our stylesheet.
+for (const unsupported of ["gap:", "inset:", "align-items: start", "align-items:start"]) {
+  assert.ok(!moduleText.includes(unsupported),
+    `stylesheet must not use ${unsupported}, which Coherent GT cannot parse`);
+}
+
 let extractedCss = true;
 try {
   await access(new URL("ConcurrentBusBoarding.css", distUrl));

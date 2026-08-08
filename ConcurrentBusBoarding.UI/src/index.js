@@ -73,6 +73,45 @@ const lookup = (moduleRegistry, module, exportName) => {
   }
 };
 
+const quietLookup = (moduleRegistry, module, exportName) => {
+  try {
+    return moduleRegistry.get(module, exportName);
+  } catch (error) {
+    return undefined;
+  }
+};
+
+// An InfoRow's right slot is a PassThroughFocusController, which hosts exactly one focusable child.
+// Two game Buttons in it make the focus system log "Cannot register second focus key" on every
+// render and a matching "Attempted to unregister mismatching focus key" on teardown, each with a
+// full managed stack capture. The sentinel that opts a Button out of focus registration lives in a
+// module whose path cannot be read from disk, so it is discovered and the matches are logged: if
+// this returns nothing, the segments fall back to non-focusable elements, which cannot trigger it.
+const findDisabledFocusKey = (moduleRegistry) => {
+  let matches = [];
+  try {
+    matches = moduleRegistry.find(/common\/focus\//i) || [];
+  } catch (error) {
+    console.warn(`[Concurrent Bus Boarding] Could not search for the focus module: ${error}`);
+  }
+  const paths = (Array.isArray(matches) ? matches : [])
+    .map((entry) => (typeof entry === "string" ? entry : entry && (entry.id || entry.path)))
+    .filter(Boolean);
+  console.log(`[Concurrent Bus Boarding] focus modules: ${paths.join(", ") || "none found"}`);
+  for (const path of paths) {
+    for (const name of ["FOCUS_DISABLED", "FOCUS_KEY_DISABLED", "DISABLED"]) {
+      const value = quietLookup(moduleRegistry, path, name);
+      if (value !== undefined && value !== null) {
+        console.log(`[Concurrent Bus Boarding] using ${name} from ${path} for segment focus.`);
+        return value;
+      }
+    }
+  }
+  console.warn("[Concurrent Bus Boarding] No disabled-focus sentinel found; " +
+    "rendering choice segments as non-focusable elements instead.");
+  return null;
+};
+
 // An undefined component thrown during render clears the entire game UI and leaves the
 // player on a bare map, so the injected section renders nothing rather than throwing.
 class EditorBoundary extends React.Component {
@@ -106,20 +145,43 @@ export default function register(moduleRegistry) {
   const ColorCustomizeField = lookup(moduleRegistry, colorFieldModule, "ColorCustomizeField");
   const OptionField = lookup(moduleRegistry, optionFieldModule, "OptionField");
   const WidgetType = lookup(moduleRegistry, widgetBindingsModule, "WidgetType");
+  const disabledFocusKey = findDisabledFocusKey(moduleRegistry);
 
-  // Each choice is its own button, so pressing the choice that is already active is a
-  // no-op instead of flipping to the other one. A single button holding two labels
-  // renders them as one run of text when the styles are unavailable.
+  // Each choice is its own control, so pressing the choice that is already active is a no-op
+  // instead of flipping to the other one. A single button holding two labels renders them as one
+  // run of text when the styles are unavailable, which is what "THIS STOPWHOLE LINE" was.
+  //
+  // Two focusable children cannot share an InfoRow's right slot, so either the game Button opts out
+  // of focus registration or the segments are plain elements. Plain elements lose the theme's hover
+  // and press feedback, so they carry their own.
+  const Segment = ({ option, selected, onChange }) => {
+    const className = cx(styles.segment, selected && styles.segmentActive,
+      option.disabled === true && styles.segmentDisabled,
+      !disabledFocusKey && styles.segmentPlain);
+    if (disabledFocusKey) {
+      return React.createElement(Button, {
+        theme: secondaryButtonTheme,
+        className,
+        focusKey: disabledFocusKey,
+        disabled: option.disabled === true,
+        onSelect: () => onChange(option.value)
+      }, option.label);
+    }
+    return React.createElement("div", {
+      className,
+      onClick: option.disabled === true ? undefined : () => onChange(option.value)
+    }, option.label);
+  };
+
   const Segmented = ({ options, value, onChange }) => React.createElement(
     "div",
     { className: styles.segmentedGroup },
-    options.map((option) => React.createElement(Button, {
+    options.map((option) => React.createElement(Segment, {
       key: String(option.value),
-      theme: secondaryButtonTheme,
-      className: cx(styles.segment, option.value === value && styles.segmentActive),
-      disabled: option.disabled === true,
-      onSelect: () => onChange(option.value)
-    }, option.label))
+      option,
+      selected: option.value === value,
+      onChange
+    }))
   );
 
   const GlobalColorSetting = (props) => {

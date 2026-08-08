@@ -50,6 +50,25 @@
   box-shadow: inset 0 0 0 1rem rgba(113, 220, 255, 0.95);
 }
 
+/* Used only when the game Button cannot be opted out of focus registration, so the segments are
+   plain elements instead and have to supply the pill look the button theme would have given them.
+   Coherent GT does not support `gap`, `inset` or `align-items: start`, so none are used here. */
+.segmentPlain {
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1rem rgba(255, 255, 255, 0.22);
+  border-radius: 16rem;
+  cursor: pointer;
+}
+
+.segmentPlain:hover {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.segmentDisabled.segmentDisabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .colorField.colorField {
   width: 40rem;
   height: 32rem;

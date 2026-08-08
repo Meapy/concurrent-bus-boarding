@@ -2,7 +2,32 @@
 
 ## Release candidate
 
-Version 1.6.2 is the current release candidate for Cities: Skylines II 1.6.0.
+Version 1.6.3 is the current release candidate for Cities: Skylines II 1.6.0. Version 1.6.2 is public.
+
+> Version 1.6.3's dominant cost is `BuildZonePieces`, not the whole-city scan. Its rear walk was bounded by
+> `MaximumCustomZoneLength` (200 m) instead of by what the zone can display, and `available` only grows when a
+> piece is appended, so a contiguous chain that broke at a junction made the loop condition permanently
+> unsatisfiable and it ran through every remaining route segment's full `PathElement` buffer, calling
+> `TryGetLaneGeometry` per element. `TryGetStopZone` does that per connected route, on the selection frame. The
+> walk is now bounded by `GetRequestedZoneLength(zone) + 12 m` (`ApplyOverride` moved ahead of
+> `BuildZonePieces` so the budget sees an override), breaks when an established chain gains nothing from a
+> whole segment, and has a hard element cap. A custom stop keeps the 200 m budget because its slider is dragged
+> without re-resolution, so the automatic-to-custom transition re-resolves once — in `SetZone` and in the map
+> drag. Failed resolutions are negative-cached, and the selected stop is resolved only when not already cached.
+> An earlier pass in this same version attributed the stall to the whole-city scan and was shipped on that
+> inference; the symptom survived it. A `CBB_DIAGNOSTICS` breadcrumb now records elements examined per walk.
+
+> Version 1.6.3 also removes a whole-city scan, which was real but not what the player was feeling.
+> `BoardingZoneRenderSystem` refreshed on a 60-frame countdown that does not advance while nothing is drawn,
+> so in the default selected-only mode it was almost always already due on the click frame; the refresh then
+> ran `FindObservedZones` over every public transport vehicle in the city to draw at most two stops. That is
+> why the spike appeared to be caused by selection. `SetZone` compounded it: the Length slider fires on every
+> frame of a drag and `Refresh()` forced the same rebuild, although a length override is read by
+> `ApplyOverride` on every draw and cannot invalidate cached lane pieces. The scan is now restricted to the
+> drawable stops and fills a reused dictionary, `Refresh()` is split into binding/colour/geometry variants,
+> selection changes force the now-cheap refresh explicitly, overlay colours are memoized, and `m_Zones` is
+> capped — closing risk 4 in the post-release crash audit below. Diagnosed statically, not profiled; measure
+> before going further if a spike remains. Full reasoning in `.agent/ui-notes.md`.
 
 > Version 1.6.2 is a UI-only fix. The zone editor's stylesheet was emitted beside the interface bundle by
 > `mini-css-extract-plugin`, and the game never loads it: `ModManager.InitializeUIModules` registers only a
@@ -13,7 +38,7 @@ Version 1.6.2 is the current release candidate for Cities: Skylines II 1.6.0.
 > rendered as one run of text. The CSS now travels inside the `.mjs` and is injected as a `<style>` element
 > at registration. The selectors are one button per choice, and the section has an error boundary. Full
 > reasoning in `.agent/ui-notes.md`.
->
+
 > Release consequence: the `.mjs` is now the entire frontend. `ConcurrentBusBoarding.csproj` and
 > `scripts/verify-release.ps1` no longer require a `.css`, and the UI smoke test asserts that none is
 > emitted. A package with a stale `.mjs` beside a fresh `.dll` still ships an out-of-date interface
