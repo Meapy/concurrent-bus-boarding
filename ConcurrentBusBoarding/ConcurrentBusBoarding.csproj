@@ -28,13 +28,15 @@
     <Reference Include="UnityEngine.CoreModule"><Private>false</Private></Reference>
   </ItemGroup>
 
-  <ItemGroup Condition="Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.mjs') And Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.css')">
+  <!-- The .mjs is the whole frontend. The game registers only a UI module's .mjs as a UI
+       mod location (Game.Modding.ModManager.InitializeUIModules), so a .css shipped beside
+       it is never loaded; the stylesheet is bundled into the .mjs and injected at runtime. -->
+  <ItemGroup Condition="Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.mjs')">
     <Content Include="..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.mjs" Link="ConcurrentBusBoarding.mjs" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.css" Link="ConcurrentBusBoarding.css" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="CheckReleaseUIBundle" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Release'">
-    <Error Condition="!Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.mjs') Or !Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.css')" Text="Release requires the UI bundle. Run npm test in ConcurrentBusBoarding.UI first." />
+    <Error Condition="!Exists('..\ConcurrentBusBoarding.UI\dist\ConcurrentBusBoarding.mjs')" Text="Release requires the UI bundle. Run npm test in ConcurrentBusBoarding.UI first." />
   </Target>
 
   <ItemGroup>

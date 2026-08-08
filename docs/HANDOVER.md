@@ -2,7 +2,22 @@
 
 ## Release candidate
 
-Version 1.6.1 is the current release candidate for Cities: Skylines II 1.6.0.
+Version 1.6.2 is the current release candidate for Cities: Skylines II 1.6.0.
+
+> Version 1.6.2 is a UI-only fix. The zone editor's stylesheet was emitted beside the interface bundle by
+> `mini-css-extract-plugin`, and the game never loads it: `ModManager.InitializeUIModules` registers only a
+> `UIModuleAsset`, whose `kExtension` is `.mjs`, and passes only that file's `couiPath` to
+> `AddActiveUIModLocation`. A `.css` in the mod folder is served over `coui://ui-mods/` because it is in
+> `FileAsset.kExtensions`, but nothing links it into the document, and no stylesheet-injection path exists
+> anywhere in the managed code. Every rule was therefore inert, which is why the two-choice selectors
+> rendered as one run of text. The CSS now travels inside the `.mjs` and is injected as a `<style>` element
+> at registration. The selectors are one button per choice, and the section has an error boundary. Full
+> reasoning in `.agent/ui-notes.md`.
+>
+> Release consequence: the `.mjs` is now the entire frontend. `ConcurrentBusBoarding.csproj` and
+> `scripts/verify-release.ps1` no longer require a `.css`, and the UI smoke test asserts that none is
+> emitted. A package with a stale `.mjs` beside a fresh `.dll` still ships an out-of-date interface
+> silently, so a UI build failure remains blocking.
 
 > Version 1.6.1 removes the **Spread waiting passengers** option and the system behind it. It was a no-op: the game
 > owns where a waiting cim stands. `Creature.m_QueueArea` persists when a mod writes it but only bounds where queuing

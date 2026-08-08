@@ -1,5 +1,4 @@
 const path = require("path");
-const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 module.exports = {
   mode: "production",
@@ -12,8 +11,19 @@ module.exports = {
   module: {
     rules: [
       {
+        // css-loader only. The CSS text stays inside the bundle and src/index.js injects
+        // it as a <style> element: Game.Modding.ModManager registers only the .mjs of a
+        // UI module as a UI mod location, so an extracted sibling .css is never loaded
+        // and every rule in it is silently dropped.
         test: /\.css$/,
-        use: [MiniCssExtractPlugin.loader, { loader: "css-loader", options: { modules: true } }]
+        use: [{
+          loader: "css-loader",
+          options: {
+            modules: { localIdentName: "cbb_[local]_[hash:base64:5]" },
+            esModule: true,
+            sourceMap: false
+          }
+        }]
       }
     ]
   },
@@ -27,6 +37,5 @@ module.exports = {
     publicPath: "coui://ui-mods/",
     clean: true
   },
-  plugins: [new MiniCssExtractPlugin({ filename: "ConcurrentBusBoarding.css" })],
   experiments: { outputModule: true }
 };

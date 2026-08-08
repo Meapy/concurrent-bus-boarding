@@ -23,8 +23,10 @@ $ReleaseFolder = (Resolve-Path $ReleaseFolder).Path
 
 $required = @("$AssemblyName.dll")
 if ($RequireUI) {
+    # The .mjs is the entire frontend. The game registers only a UI module's .mjs as a UI
+    # mod location, so a .css shipped beside it is never loaded; the stylesheet lives
+    # inside the bundle and is injected at runtime.
     $required += "$AssemblyName.mjs"
-    $required += "$AssemblyName.css"
 }
 
 $missing = @()

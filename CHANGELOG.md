@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.6.2 - 2026-08-08
+
+Fixes the Bus Boarding Zone panel, which had been rendering without any of its styling.
+
+- Fix the two-choice selectors running their labels together, so **This stop** and **Whole line**
+  appeared as "THIS STOPWHOLE LINE" and **Global** and **Line colour** as "GLOBALLINE COLOUR".
+  The panel's stylesheet was being written next to the interface bundle rather than inside it, and
+  the game only ever loads the bundle, so every rule in it was quietly discarded.
+- Make both selectors work as selectors. They were a single button holding two labels, so pressing
+  the choice that was already active switched to the other one. Each choice is now its own button
+  and pressing it selects that choice.
+- Grey out **Whole line** and **Line colour** at a stop that is not served by a line, instead of
+  offering choices that cannot apply.
+- Show the colour source as **Colour source (custom)** while a stop has its own custom colour, since
+  neither Global nor Line colour is in use then. Pressing either one still clears the custom colour.
+- Show the **Right-click or Esc** hint only while map editing is actually open.
+- The panel can no longer take the rest of the interface down with it. If it fails, it hides itself
+  and reports the reason to the log rather than leaving a bare map with no menus.
+
 ## 1.6.1 - 2026-07-29
 
 Housekeeping after the 1.6.0 fix. No change to boarding behaviour.

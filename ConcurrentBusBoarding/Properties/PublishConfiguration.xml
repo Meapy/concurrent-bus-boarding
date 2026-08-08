@@ -40,9 +40,9 @@ Boarding behaviour changes only passenger buses. Of the two optional attractiven
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.6.1" />
+	<ModVersion Value="1.6.2" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Housekeeping release. Removes an unfinished option that tried to spread waiting passengers along the boarding zone: the game positions waiting cims itself and does not allow a mod to move them, so the setting never had any effect. Everything the 1.6.0 fix does is unchanged." />
+	<ChangeLog Value="Fixes the Bus Boarding Zone panel, which had been drawn without any of its styling. The This stop / Whole line and Global / Line colour choices ran their labels together as one unreadable button, and pressing the choice that was already active switched to the other one. Each choice is now a separate button that selects itself, choices that cannot apply at an unserved stop are greyed out, and a stop using its own custom colour says so. Boarding behaviour is unchanged." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />
