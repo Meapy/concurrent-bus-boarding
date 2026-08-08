@@ -40,9 +40,9 @@ Boarding behaviour changes only passenger buses. Of the two optional attractiven
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.6.2" />
+	<ModVersion Value="1.6.3" />
 	<GameVersion Value="1.6.0*" />
-	<ChangeLog Value="Fixes the Bus Boarding Zone panel, which had been drawn without any of its styling. The This stop / Whole line and Global / Line colour choices ran their labels together as one unreadable button, and pressing the choice that was already active switched to the other one. Each choice is now a separate button that selects itself, choices that cannot apply at an unserved stop are greyed out, and a stop using its own custom colour says so. Boarding behaviour is unchanged." />
+	<ChangeLog Value="Performance fix. Selecting a bus stop could freeze the game for up to a second before its boarding zone appeared. Working out how far the zone extends behind a stop followed the line's path backwards until it had collected 200 m, the largest a zone can ever be, even at an ordinary stop whose zone is 26 m; and if that path broke at a junction it could never reach 200 m, so it carried on through the entire bus line before giving up. It now collects only what the zone can show and stops when the path runs out. Dragging the Length slider no longer rebuilds geometry every frame, overlay colours are worked out once instead of every frame, and the remembered zone list is capped. Boarding behaviour, saved data and the interface are unchanged." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
 	<ExternalLink Type="github" Url="https://github.com/Meapy/concurrent-bus-boarding" />
 	<AccessLevel Value="Public" />

@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.6.3 - 2026-08-08
+
+Fixes the freeze of up to a second when selecting a bus stop, and a stutter while dragging Length.
+
+- Fix the pause before a selected stop's boarding zone appears. Working out how far the zone extends
+  behind a stop meant following the line's path backwards, and the search kept going until it had
+  collected 200 m — the largest a zone can ever be — even at an ordinary stop whose zone is 26 m.
+  Worse, if the path behind the stop broke at a junction the search could never reach 200 m, so it
+  carried on through every remaining piece of the entire bus line before giving up. On a long line
+  that is tens of thousands of lookups on the frame you click. It now collects only as much as the
+  zone can actually show, and stops as soon as the path behind the stop runs out.
+- Stop re-doing that search every frame at a stop where the zone cannot be worked out yet, which is
+  what happens at a stop showing "Waiting for a bus to approach".
+- Fix the stutter while dragging **Length**. Every frame of the drag rebuilt zone geometry for every
+  bus in the city, even though the length is applied when the overlay is drawn and cannot change the
+  underlying geometry. The rebuild now happens once, when a stop first becomes custom.
+- Only work out geometry for stops that can actually be shown, rather than for every bus in the city.
+- Stop re-deriving each stop's overlay colour for every frame it is drawn, which walked its line list
+  each time. It is now worked out once and reused until something changes it.
+- Cap the remembered zone list. It grew for every stop visited in a session and was walked in full
+  each refresh.
+
+- Fix an error the boarding zone panel logged every time a stop was selected. The two-choice
+  selectors added in 1.6.2 put two buttons in a row that can only hold one, so the game's focus
+  system rejected the second and recorded a full error report each time. The selectors look and
+  behave the same.
+
+Boarding behaviour, saved data and the interface are otherwise unchanged.
+
 ## 1.6.2 - 2026-08-08
 
 Fixes the Bus Boarding Zone panel, which had been rendering without any of its styling.

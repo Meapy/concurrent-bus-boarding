@@ -1207,17 +1207,29 @@ namespace ConcurrentBusBoarding
                 entityManager.HasBuffer<RouteWaypoint>(route);
         }
 
-        internal static Dictionary<Entity, BoardingZone> FindObservedZones(EntityManager entityManager, EntityQuery busQuery)
+        // Fills <paramref name="result"/> rather than returning a new dictionary, because this runs on a
+        // timer and allocating one per refresh is pure garbage.
+        //
+        // When either restrict entity is set, only buses whose stop is one of them are resolved. Resolving a
+        // zone walks the stop's route lanes and inbound path elements, so in the default selected-only
+        // display mode the unrestricted form did that work for every bus in the city and then drew at most
+        // two stops. The filter is applied before IsBus because TryGetStop is the cheaper of the two.
+        internal static void FindObservedZones(EntityManager entityManager, EntityQuery busQuery,
+            Dictionary<Entity, BoardingZone> result, Entity restrictToA, Entity restrictToB)
         {
-            var result = new Dictionary<Entity, BoardingZone>();
+            result.Clear();
+            bool restricted = restrictToA != Entity.Null || restrictToB != Entity.Null;
             using NativeArray<Entity> buses = busQuery.ToEntityArray(Allocator.Temp);
             foreach (Entity bus in buses)
             {
-                if (!IsBus(entityManager, bus) || !TryGetStop(entityManager, bus, out Entity stop))
+                if (!TryGetStop(entityManager, bus, out Entity stop))
+                    continue;
+                if (restricted && stop != restrictToA && stop != restrictToB)
+                    continue;
+                if (!IsBus(entityManager, bus))
                     continue;
                 ObserveZone(entityManager, result, stop, bus);
             }
-            return result;
         }
 
         internal static void ObserveZone(EntityManager entityManager, Dictionary<Entity, BoardingZone> zones,
@@ -1362,10 +1374,19 @@ namespace ConcurrentBusBoarding
                 StopDistance = stopDistance,
                 IsPhysical = physical
             };
-            BuildZonePieces(entityManager, waypoint, ref zone);
+            // Before BuildZonePieces, not after: the rear walk is bounded by how much zone is actually
+            // wanted, and that depends on whether this stop carries a length override.
             ApplyOverride(entityManager, stop, ref zone);
+            BuildZonePieces(entityManager, waypoint, ref zone);
             return true;
         }
+
+        // How much further than the requested zone length the rear walk will collect, so a zone whose
+        // pieces are trimmed at the front still has geometry behind the trim point.
+        private const float RearWalkMargin = 12f;
+        // Backstop for a route whose path elements never form a contiguous rear chain. Reaching this
+        // means the walk gave up, not that the zone is complete.
+        private const int MaximumRearWalkElements = 4096;
 
         private static void BuildZonePieces(EntityManager entityManager, Entity waypoint, ref BoardingZone zone)
         {
@@ -1396,15 +1417,35 @@ namespace ConcurrentBusBoarding
             float available = PieceLength(zone.Pieces[0]);
             bool foundCurrentLane = false;
 
-            for (int offset = 1; offset <= segments.Length && available < BoardingPolicy.MaximumCustomZoneLength; offset++)
+            // Collect only as much rear geometry as this zone can display. This used to chase
+            // MaximumCustomZoneLength (200 m) regardless, so an ordinary 26 m stop kept walking; and
+            // because `available` only grows when a piece is actually appended, a chain that broke
+            // early left the condition permanently unsatisfiable and the walk continued through every
+            // remaining segment's entire PathElement buffer. On a long line that is tens of thousands
+            // of component lookups on the frame the stop is selected.
+            //
+            // A custom stop keeps the full budget: its slider can be dragged out to 200 m without the
+            // geometry being re-resolved, so the pieces have to already be there.
+            float needed = zone.IsCustom
+                ? BoardingPolicy.MaximumCustomZoneLength
+                : math.min(BoardingPolicy.MaximumCustomZoneLength,
+                    GetRequestedZoneLength(zone) + RearWalkMargin);
+            int examined = 0;
+
+            for (int offset = 1; offset <= segments.Length && available < needed; offset++)
             {
                 int segmentIndex = (waypointIndex - offset + segments.Length) % segments.Length;
                 Entity segment = segments[segmentIndex].m_Segment;
                 if (segment == Entity.Null || !entityManager.HasBuffer<PathElement>(segment))
                     break;
+                // A segment that adds nothing once the chain is established has broken it, and every
+                // segment after this one is further from the stop still, so none of them can attach.
+                bool chainEstablished = foundCurrentLane;
+                int piecesBefore = zone.Pieces.Count;
                 DynamicBuffer<PathElement> path = entityManager.GetBuffer<PathElement>(segment, true);
-                for (int i = path.Length - 1; i >= 0 && available < BoardingPolicy.MaximumCustomZoneLength; i--)
+                for (int i = path.Length - 1; i >= 0 && available < needed && examined < MaximumRearWalkElements; i--)
                 {
+                    examined++;
                     PathElement element = path[i];
                     if (!foundCurrentLane)
                     {
@@ -1436,7 +1477,13 @@ namespace ConcurrentBusBoarding
                     rear = PieceRear(piece);
                     available += PieceLength(piece);
                 }
+                if (examined >= MaximumRearWalkElements || (chainEstablished && zone.Pieces.Count == piecesBefore))
+                    break;
             }
+#if CBB_DIAGNOSTICS
+            CrashBreadcrumbs.Write($"zone-rear-walk elements={examined} pieces={zone.Pieces.Count} " +
+                $"available={available:0.#} needed={needed:0.#} custom={zone.IsCustom} pullin={zone.IsPullIn}");
+#endif
         }
 
         private static void ConsiderLane(EntityManager entityManager, Entity candidate, int candidateDirection,

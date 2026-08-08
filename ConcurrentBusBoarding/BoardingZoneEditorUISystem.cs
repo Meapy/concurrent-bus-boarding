@@ -147,11 +147,18 @@ namespace ConcurrentBusBoarding
 
             var custom = new BoardingZoneOverride(0f,
                 math.clamp(length, BoardingPolicy.MinimumCustomZoneLength, BoardingPolicy.MaximumCustomZoneLength));
-            if (EntityManager.HasComponent<BoardingZoneOverride>(stop))
+            bool wasCustom = EntityManager.HasComponent<BoardingZoneOverride>(stop);
+            if (wasCustom)
                 EntityManager.SetComponentData(stop, custom);
             else
                 EntityManager.AddComponentData(stop, custom);
-            Refresh();
+            // An automatic zone collects only the rear geometry it can display. Becoming custom raises
+            // that ceiling to the full 200 m, so the pieces are resolved once more on that transition -
+            // and only on that transition, never on the frames of the drag that follows.
+            if (wasCustom)
+                RefreshBinding();
+            else
+                RefreshGeometry();
         }
 
         private void ResetZone()
@@ -160,7 +167,7 @@ namespace ConcurrentBusBoarding
                 return;
             if (EntityManager.HasComponent<BoardingZoneOverride>(stop))
                 EntityManager.RemoveComponent<BoardingZoneOverride>(stop);
-            Refresh();
+            RefreshBinding();
         }
 
         private void SetLineColor(bool useLineColor)
@@ -174,13 +181,13 @@ namespace ConcurrentBusBoarding
                 EntityManager.AddComponentData(stop, color);
             if (EntityManager.HasComponent<BoardingZoneCustomColor>(stop))
                 EntityManager.RemoveComponent<BoardingZoneCustomColor>(stop);
-            Refresh();
+            RefreshColors();
         }
 
         private void SetGlobalOverlayColor(string rgba)
         {
             if (Mod.Settings != null && Mod.Settings.SetGlobalOverlayColor(rgba))
-                Refresh();
+                RefreshColors();
         }
 
         private void SetStopOverlayColor(string rgb, bool wholeLine)
@@ -198,7 +205,7 @@ namespace ConcurrentBusBoarding
                 EntityManager.AddComponentData(target, color);
             if (!wholeLine && EntityManager.HasComponent<BoardingZoneColorOverride>(stop))
                 EntityManager.RemoveComponent<BoardingZoneColorOverride>(stop);
-            Refresh();
+            RefreshColors();
         }
 
         internal static void RequestResetAllZones() => s_ResetAllRequested = true;
@@ -212,7 +219,7 @@ namespace ConcurrentBusBoarding
                 EntityManager.RemoveComponent<BoardingZoneOverride>(m_ZoneOverrides);
                 Mod.Log.Info($"Reset {count} customized boarding zone(s)");
             }
-            Refresh();
+            RefreshBinding();
         }
 
         private void ResetAllZoneColors()
@@ -227,7 +234,7 @@ namespace ConcurrentBusBoarding
             {
                 Mod.Log.Info($"Reset {sourceCount + customCount} boarding-zone colour override(s)");
             }
-            Refresh();
+            RefreshColors();
         }
 
         private static void WriteColor(IJsonWriter writer, string property, UnityColor color)
@@ -258,7 +265,7 @@ namespace ConcurrentBusBoarding
                     m_ToolSystem.activeTool = m_ZoneTool;
                 }
             }
-            Refresh();
+            RefreshGeometry();
         }
 
         private void StopEditing()
@@ -284,9 +291,25 @@ namespace ConcurrentBusBoarding
             return false;
         }
 
-        private void Refresh()
+        // The binding must be rewritten, but the cached zone geometry is untouched. A length override is
+        // read from its component on every draw (DrawZone and TryGetObservedZone both call ApplyOverride),
+        // so it cannot invalidate the resolved lane pieces. This matters because the Length slider fires
+        // SetZone on every frame of a drag: forcing a geometry rebuild here meant a whole-city vehicle
+        // scan per frame for as long as the player held the handle.
+        private void RefreshBinding() => m_Frame = UpdateEveryFrames;
+
+        // Colours are resolved per drawn zone per frame and memoized, so a colour change must drop that memo.
+        private void RefreshColors()
         {
             m_Frame = UpdateEveryFrames;
+            m_RenderSystem.InvalidateColors();
+        }
+
+        // The resolved lane geometry itself is no longer trustworthy and must be rebuilt.
+        private void RefreshGeometry()
+        {
+            m_Frame = UpdateEveryFrames;
+            m_RenderSystem.InvalidateColors();
             m_RenderSystem.Invalidate();
         }
     }

@@ -70,7 +70,7 @@ namespace ConcurrentBusBoarding
             if (m_DragHandle != 0 && mouse.leftButton.isPressed &&
                 TryGetPointerWorld(camera, pointer, out float3 world) &&
                 BoardingHelpers.TryGetDistanceFromFront(zone, world, out float length))
-                UpdateZone(length);
+                UpdateZone(length, renderSystem);
 
             if (mouse.leftButton.wasReleasedThisFrame)
                 m_DragHandle = 0;
@@ -89,16 +89,23 @@ namespace ConcurrentBusBoarding
             m_DragPlaneHeight = MathUtils.Position(piece.Curve.m_Bezier, rear).y;
         }
 
-        private void UpdateZone(float length)
+        private void UpdateZone(float length, BoardingZoneRenderSystem renderSystem)
         {
             if (!math.isfinite(length))
                 return;
             BoardingZoneOverride custom = new BoardingZoneOverride(0f,
                 math.clamp(length, BoardingPolicy.MinimumCustomZoneLength, BoardingPolicy.MaximumCustomZoneLength));
             if (EntityManager.HasComponent<BoardingZoneOverride>(m_EditingStop))
+            {
+                // Already custom: the rear geometry was resolved with the full 200 m budget, so a drag
+                // only moves the trim point and must not re-resolve anything.
                 EntityManager.SetComponentData(m_EditingStop, custom);
-            else
-                EntityManager.AddComponentData(m_EditingStop, custom);
+                return;
+            }
+            // An automatic zone only collected the rear geometry it could display. Dragging past that
+            // needs the pieces re-resolved once, on this transition alone.
+            EntityManager.AddComponentData(m_EditingStop, custom);
+            renderSystem.Invalidate();
         }
 
         private bool TryGetPointerWorld(Camera camera, Vector2 pointer, out float3 world)
