@@ -34,6 +34,19 @@ namespace ConcurrentBusBoarding
             GameManager.instance.localizationManager.AddSource("en-US", new SettingsLocale(Settings));
             AssetDatabase.global.LoadSettings("ConcurrentBusBoarding", Settings,
                 new ConcurrentBusBoardingSettings(this));
+            // A settings file written before this option existed deserializes it as 0. Zero is not a
+            // usable zone length, and clamping it silently would shrink every ordinary stop in the
+            // city from 26 m to the 6 m minimum, so repair the stored value rather than the derived
+            // one. Assigning through the property also applies it to BoardingPolicy.
+            if (Settings.DefaultZoneLength < (int)BoardingPolicy.MinimumCustomZoneLength)
+            {
+                Settings.DefaultZoneLength = (int)BoardingPolicy.DefaultOrdinaryZoneLength;
+                Settings.ApplyAndSave();
+            }
+            else
+            {
+                BoardingPolicy.SetOrdinaryZoneLength(Settings.DefaultZoneLength);
+            }
 
             // One-time migration. 1.5.1 to 1.5.3 switched concurrent boarding off automatically,
             // because holding a bus made its own line look slower to the pathfinder. 1.6.0 repays

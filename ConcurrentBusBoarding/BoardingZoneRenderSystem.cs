@@ -326,6 +326,17 @@ namespace ConcurrentBusBoarding
 
         internal void Invalidate() => m_RefreshIn = 0;
 
+        // Drops every resolved zone, not just the refresh timer. Needed when the default zone length
+        // changes: pieces are collected only as far as a zone can display, so a cached zone built for
+        // a shorter default has no geometry behind its old rear edge and cannot simply be redrawn.
+        internal void InvalidateGeometry()
+        {
+            m_Zones.Clear();
+            m_Unresolved.Clear();
+            m_OverlayColors.Clear();
+            m_RefreshIn = 0;
+        }
+
         private Entity GetSelectedStop()
         {
             Entity selected = m_SelectedInfo.selectedEntity;

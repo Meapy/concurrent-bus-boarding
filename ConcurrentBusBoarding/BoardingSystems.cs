@@ -580,7 +580,7 @@ namespace ConcurrentBusBoarding
                             m_NativeCompletions++;
                             BeginRouteHandoff(bus, active.Route);
                             RepayHeldTime(active);
-                        BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                             continue;
                         }
                         if (BoardingPolicy.ShouldCompleteManagedBoarding(
@@ -592,7 +592,7 @@ namespace ConcurrentBusBoarding
                             m_ManagedCompletions++;
                             BeginRouteHandoff(bus, active.Route);
                             RepayHeldTime(active);
-                        BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
+                            BoardingHelpers.ReleaseConcurrentBoarding(EntityManager, bus, active);
                             continue;
                         }
                         EntityManager.SetComponentData(bus, active);

@@ -1,10 +1,41 @@
+// No using directives, and nothing outside mscorlib. scripts/test-policy.ps1 compiles this file on
+// its own with the .NET Framework 4.0 csc.exe so the policy rules can be checked without the game
+// assemblies, so it must also stay within C# 5: no expression-bodied members, no Unity.Mathematics.
 namespace ConcurrentBusBoarding
 {
     internal static class BoardingPolicy
     {
         internal const int OrdinaryStopLimit = 2;
         internal const float BusGap = 1.5f;
-        internal const float OrdinaryZoneLength = 26f;
+        // The rear length an ordinary curbside stop uses when the player has not edited it. This is
+        // player-configurable, so it is a mutable static rather than a const - and it is not merely
+        // cosmetic: GetZoneBounds decides which buses count as inside a zone, so raising it lets more
+        // buses board together at ordinary stops, up to OrdinaryStopLimit.
+        //
+        // Never read from a Burst job. Every caller reaches it through BoardingHelpers, which is
+        // managed code taking an EntityManager.
+        internal const float DefaultOrdinaryZoneLength = 26f;
+        private static float s_OrdinaryZoneLength = DefaultOrdinaryZoneLength;
+
+        internal static float OrdinaryZoneLength
+        {
+            get { return s_OrdinaryZoneLength; }
+        }
+
+        internal static void SetOrdinaryZoneLength(float metres)
+        {
+            if (float.IsNaN(metres) || float.IsInfinity(metres))
+            {
+                s_OrdinaryZoneLength = DefaultOrdinaryZoneLength;
+                return;
+            }
+            if (metres < MinimumCustomZoneLength)
+                metres = MinimumCustomZoneLength;
+            else if (metres > MaximumCustomZoneLength)
+                metres = MaximumCustomZoneLength;
+            s_OrdinaryZoneLength = metres;
+        }
+
         internal const float BoardingPositionTolerance = 2f;
         internal const float BoardingSpeedTolerance = 1f;
         internal const float BoardingHeadingTolerance = 0.9f;

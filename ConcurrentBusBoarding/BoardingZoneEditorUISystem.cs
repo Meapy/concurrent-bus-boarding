@@ -19,6 +19,7 @@ namespace ConcurrentBusBoarding
         private const int UpdateEveryFrames = 10;
         private static volatile bool s_ResetAllRequested;
         private static volatile bool s_ResetAllColorsRequested;
+        private static volatile bool s_GeometryRefreshRequested;
 
         private EntityQuery m_ZoneOverrides;
         private EntityQuery m_ColorOverrides;
@@ -76,6 +77,13 @@ namespace ConcurrentBusBoarding
             {
                 s_ResetAllColorsRequested = false;
                 ResetAllZoneColors();
+            }
+            // Queued from the settings setter, which runs on the UI thread and has no world access.
+            if (s_GeometryRefreshRequested)
+            {
+                s_GeometryRefreshRequested = false;
+                m_RenderSystem.InvalidateGeometry();
+                RefreshBinding();
             }
             if (m_ZoneTool.EditingStop != Entity.Null && TryGetSelectedStop(out Entity selectedStop) &&
                 selectedStop != m_ZoneTool.EditingStop)
@@ -210,6 +218,7 @@ namespace ConcurrentBusBoarding
 
         internal static void RequestResetAllZones() => s_ResetAllRequested = true;
         internal static void RequestResetAllZoneColors() => s_ResetAllColorsRequested = true;
+        internal static void RequestZoneGeometryRefresh() => s_GeometryRefreshRequested = true;
 
         private void ResetAllZones()
         {

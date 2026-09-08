@@ -2,7 +2,20 @@
 
 ## Release candidate
 
-Version 1.6.3 is the current release candidate for Cities: Skylines II 1.6.0. Version 1.6.2 is public.
+Version 1.7.0 is the current release candidate for Cities: Skylines II 1.6.0. Version 1.6.2 is public.
+
+> Version 1.7.0 adds a **Default boarding zone length** slider, 6-200 m, default 26 m. It is a global
+> fallback, not per-stop data: `BoardingPolicy.OrdinaryZoneLength` changes from a const to a settable static
+> and nothing is written to any stop, so the setting costs nothing in the save and is exactly reversible.
+> `GetZoneBounds` reads it, so this changes admission and not only the overlay — a longer default lets a
+> second bus stop further behind the first and still board, up to `OrdinaryStopLimit`. Pull-in bays keep
+> their resolved physical lane length. Changing the value calls `InvalidateGeometry`, dropping resolved zones
+> rather than only resetting the refresh timer, because rear pieces are collected only as far as a zone can
+> display; the slider is `updateOnDragEnd` so that citywide re-resolve happens once per drag. A settings file
+> predating the option deserializes it as 0 and is repaired to 26 on load — clamping instead would silently
+> shrink every ordinary stop to the 6 m minimum. `ResetAllZones` is unchanged in behaviour and relabelled
+> "Use the default at every stop"; the `Display` group key is unchanged and only its label moves to
+> "Boarding zones", so no settings migration is involved.
 
 > Version 1.6.3's dominant cost is `BuildZonePieces`, not the whole-city scan. Its rear walk was bounded by
 > `MaximumCustomZoneLength` (200 m) instead of by what the zone can display, and `available` only grows when a
