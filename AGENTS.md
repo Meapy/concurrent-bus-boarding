@@ -15,6 +15,15 @@ This is a managed Cities: Skylines II code mod. Keep the implementation small an
 - Run `npm ci` and `npm test` in `ConcurrentBusBoarding.UI` for the production UI bundle and smoke check (or use its Dockerfile).
 - Run `dotnet build ConcurrentBusBoarding.slnx -c Release` against the installed game before release.
 
+## BoardingPolicy.cs
+
+`scripts/test-policy.ps1` compiles this one file on its own with the .NET Framework 4.0 `csc.exe`,
+against `tests/BoardingPolicyCheck.cs`, so the policy rules can be checked without the game
+assemblies. It must therefore stay dependency-free and within C# 5: no `using` directives, no
+expression-bodied members, no `Unity.Mathematics`. Any of those builds fine in the real project and
+fails only in the policy check, which is what makes it easy to walk into. A guard in the script now
+rejects all three.
+
 ## UI
 
 - `ConcurrentBusBoarding.mjs` is the whole frontend. The game registers only a UI module's `.mjs` as a

@@ -18,6 +18,7 @@ $mod = Get-Content -Raw "$root\ConcurrentBusBoarding\Mod.cs"
 $zoneEditor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneEditorUISystem.cs"
 $zoneRenderer = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneRenderSystem.cs"
 $zoneTool = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneToolSystem.cs"
+$policy = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingPolicy.cs"
 $colorOverride = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneColorOverride.cs"
 $customColor = Get-Content -Raw "$root\ConcurrentBusBoarding\BoardingZoneCustomColor.cs"
 $transitAttractiveness = Get-Content -Raw "$root\ConcurrentBusBoarding\PublicTransportAttractivenessSystem.cs"
@@ -112,6 +113,37 @@ if ($zoneRenderer -notmatch 'm_OverlayColors\.TryGetValue\(stop, out UnityColor 
 # A cached physical observation outlives its selection deliberately, so the cache needs a bound.
 if ($zoneRenderer -notmatch 'MaxCachedZones') {
     throw 'The observed-zone cache must be bounded; it is walked in full by every prune.'
+}
+# The default zone length is a global fallback, never per-stop data: it must stay out of the save so
+# moving the slider back undoes it exactly, and so no component is written to every stop in a city.
+if ($policy -notmatch 'internal static float OrdinaryZoneLength' -or
+    $policy -match 'internal const float OrdinaryZoneLength') {
+    throw 'The ordinary zone length must be a configurable static, not a compile-time constant.'
+}
+# This file is compiled on its own by the csc.exe invocation at the top of this script, so it must
+# stay dependency-free and within C# 5. An expression-bodied member or a Unity type fails there while
+# building perfectly well in the real project, which makes it an easy trap to walk into.
+if ($policy -match '(?m)^\s*using ' -or $policy -match '=>' -or $policy -match '\bmath\.') {
+    throw 'BoardingPolicy.cs must stay dependency-free and C# 5 compatible: no usings, no expression-bodied members, no Unity.Mathematics.'
+}
+if ($settings -notmatch 'BoardingPolicy\.SetOrdinaryZoneLength\(value\)' -or
+    $settings -notmatch 'BoardingZoneEditorUISystem\.RequestZoneGeometryRefresh\(\)') {
+    throw 'Changing the default zone length must apply it and re-resolve zone geometry.'
+}
+if ($settings -match 'DefaultZoneLength\s*\{\s*get;\s*set;\s*\}') {
+    throw 'DefaultZoneLength needs a real setter; an auto-property cannot apply the value.'
+}
+# Zero is what an older settings file deserializes to, and clamping it silently would shrink every
+# ordinary stop in the city from 26 m to the 6 m minimum.
+if ($mod -notmatch 'Settings\.DefaultZoneLength < \(int\)BoardingPolicy\.MinimumCustomZoneLength' -or
+    $mod -notmatch 'Settings\.DefaultZoneLength = \(int\)BoardingPolicy\.DefaultOrdinaryZoneLength') {
+    throw 'A settings file predating the default-length option must be repaired, not clamped.'
+}
+# Pieces are collected only as far as a zone can display, so a larger default has no geometry behind
+# the old rear edge and cannot simply be redrawn from cache.
+if ($zoneRenderer -notmatch 'internal void InvalidateGeometry\(\)' -or
+    $zoneRenderer -notmatch 'InvalidateGeometry\(\)\s*\{\s*\r?\n\s*m_Zones\.Clear\(\);') {
+    throw 'A default-length change must drop resolved zones, not only reset the refresh timer.'
 }
 if ($diagnostics -notmatch 'if \(manual\)\s*\r?\n\s*ReportCims\(frame\)') {
     throw 'The whole-city cim scan must only run when a report is explicitly requested.'

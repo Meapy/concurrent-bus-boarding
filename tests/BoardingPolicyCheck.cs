@@ -69,6 +69,29 @@ internal static class BoardingPolicyCheck
         Expect(Near(start, 0.5f) && Near(end, 0.9f), "decreasing custom zone ends at stop");
         BoardingPolicy.GetZoneBounds(false, 0.5f, 0f, 1, true, 0f, 40f, out start, out end);
         Expect(start == 0.5f && end == 0.5f, "invalid custom lane has no boarding area");
+
+        // The configurable default. GetZoneBounds reads it, so this decides which buses count as
+        // inside an ordinary zone and is not merely how far the overlay is drawn. Every case restores
+        // 26 afterwards, because the checks above and below assume the shipped default.
+        Expect(Near(BoardingPolicy.OrdinaryZoneLength, 26f), "default ordinary zone length is 26 m");
+        BoardingPolicy.SetOrdinaryZoneLength(60f);
+        Expect(Near(BoardingPolicy.OrdinaryZoneLength, 60f), "default zone length is configurable");
+        BoardingPolicy.GetZoneBounds(false, 0.75f, 100f, 1, false, 0f, 0f, out start, out end);
+        Expect(Near(start, 0.15f) && Near(end, 0.75f), "a longer default extends an ordinary zone");
+        BoardingPolicy.GetZoneBounds(true, 0.5f, 100f, 1, false, 0f, 0f, out start, out end);
+        Expect(start == 0f && Near(end, 0.5f), "a pull-in bay ignores the default and uses its lane");
+        BoardingPolicy.GetZoneBounds(false, 0.5f, 100f, 1, true, 0f, 40f, out start, out end);
+        Expect(Near(start, 0.1f) && Near(end, 0.5f), "an edited stop ignores the default");
+        // 0 is what a settings file predating this option deserializes to.
+        BoardingPolicy.SetOrdinaryZoneLength(0f);
+        Expect(Near(BoardingPolicy.OrdinaryZoneLength, 6f), "below minimum clamps to the minimum");
+        BoardingPolicy.SetOrdinaryZoneLength(500f);
+        Expect(Near(BoardingPolicy.OrdinaryZoneLength, 200f), "above maximum clamps to the maximum");
+        BoardingPolicy.SetOrdinaryZoneLength(float.NaN);
+        Expect(Near(BoardingPolicy.OrdinaryZoneLength, 26f), "a non-finite length falls back to 26 m");
+        BoardingPolicy.SetOrdinaryZoneLength(float.PositiveInfinity);
+        Expect(Near(BoardingPolicy.OrdinaryZoneLength, 26f), "an infinite length falls back to 26 m");
+        BoardingPolicy.SetOrdinaryZoneLength(BoardingPolicy.DefaultOrdinaryZoneLength);
         Expect(BoardingPolicy.RotationIndex(3, 0, 0) == 0, "rotation start");
         Expect(BoardingPolicy.RotationIndex(3, 1, 0) == 1, "rotation advance");
         Expect(!BoardingPolicy.ShouldEngageConcurrentBoarding(0),

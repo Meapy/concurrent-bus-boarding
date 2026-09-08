@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.7.0 - 2026-08-08
+
+Adds a default boarding zone length you can set once for the whole city.
+
+- Add a **Default boarding zone length** slider to Options, from 6 m to 200 m, default 26 m. Every bus
+  stop follows it unless you have given that stop its own length on the map or with its slider.
+- Nothing is stored in your city, so moving the slider back undoes it exactly. There is no per-stop
+  data to clean up afterwards and your save does not grow.
+- This affects boarding, not only the overlay. A longer zone lets a second bus stop further behind
+  the first and still board with it, up to the two-bus limit at an ordinary stop.
+- Pull-in bays keep the length of their actual bay, since that is real geometry rather than a
+  preference.
+- **Reset all customized zones** is now **Use the default at every stop**. It does the same thing —
+  removes every hand-edited stop length — which now means those stops follow the default above.
+- The Options group holding these is renamed from "Overlay" to "Boarding zones", since it no longer
+  only affects how they are drawn.
+
 ## 1.6.3 - 2026-08-08
 
 Fixes the freeze of up to a second when selecting a bus stop, and a stutter while dragging Length.

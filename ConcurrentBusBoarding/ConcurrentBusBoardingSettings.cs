@@ -63,6 +63,27 @@ namespace ConcurrentBusBoarding
             set => LineDiagnosticsSystem.RequestReport();
         }
 
+        // Not stored per stop. This is the length every stop uses unless it has its own edited length,
+        // so changing it costs nothing in the save and moving the slider back undoes it exactly.
+        // updateOnDragEnd because applying it re-resolves boarding-zone geometry for the whole city,
+        // which should happen once when the handle is released rather than on every step of a drag.
+        [SettingsUISection(MainSection, DisplayGroup)]
+        [SettingsUISlider(min = 6f, max = 200f, step = 2f, unit = "length", updateOnDragEnd = true)]
+        public int DefaultZoneLength
+        {
+            get => m_DefaultZoneLength;
+            set
+            {
+                m_DefaultZoneLength = value;
+                BoardingPolicy.SetOrdinaryZoneLength(value);
+                // Zone geometry is collected only as far as the zone can display, so a larger default
+                // needs the pieces resolved again before it can show or admit anything.
+                BoardingZoneEditorUISystem.RequestZoneGeometryRefresh();
+            }
+        }
+
+        private int m_DefaultZoneLength = (int)BoardingPolicy.DefaultOrdinaryZoneLength;
+
         [SettingsUISection(MainSection, DisplayGroup)]
         public bool OnlyShowSelectedStop { get; set; }
 
@@ -92,7 +113,7 @@ namespace ConcurrentBusBoarding
         [SettingsUISection(MainSection, DisplayGroup)]
         [SettingsUIButton]
         [SettingsUIConfirmation(null,
-            "Reset every customized bus boarding zone in the current city? This cannot be undone.")]
+            "Make every bus stop in this city use the default length? Stops you have edited by hand will lose their own length. This cannot be undone.")]
         public bool ResetAllZones
         {
             set => BoardingZoneEditorUISystem.RequestResetAllZones();
@@ -113,6 +134,7 @@ namespace ConcurrentBusBoarding
             SettingsVersion = CurrentSettingsVersion;
             PublicTransportAttractiveness = 100;
             BusAttractiveness = 100;
+            DefaultZoneLength = (int)BoardingPolicy.DefaultOrdinaryZoneLength;
             OnlyShowSelectedStop = true;
             GlobalOverlayRed = 38;
             GlobalOverlayGreen = 140;
@@ -176,7 +198,8 @@ namespace ConcurrentBusBoarding
                 { m_Settings.GetOptionTabLocaleID(ConcurrentBusBoardingSettings.MainSection), "Main" },
                 { m_Settings.GetOptionGroupLocaleID(ConcurrentBusBoardingSettings.TransportGroup),
                     "Public transport" },
-                { m_Settings.GetOptionGroupLocaleID(ConcurrentBusBoardingSettings.DisplayGroup), "Overlay" },
+                { m_Settings.GetOptionGroupLocaleID(ConcurrentBusBoardingSettings.DisplayGroup),
+                    "Boarding zones" },
                 { m_Settings.GetOptionLabelLocaleID(
                         nameof(ConcurrentBusBoardingSettings.PublicTransportAttractiveness)),
                     "Public transport attractiveness" },
@@ -211,10 +234,14 @@ namespace ConcurrentBusBoarding
                     "Overlay opacity" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.OverlayOpacity)),
                     "Set boarding-zone opacity. Lower percentages make every overlay more transparent." },
+                { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.DefaultZoneLength)),
+                    "Default boarding zone length" },
+                { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.DefaultZoneLength)),
+                    "How far back along the road a bus stop's boarding zone reaches when you have not set that stop's own length. Every stop follows this immediately, and nothing is stored in your city, so moving the slider back undoes it exactly. A longer zone lets a second bus stop further behind the first and still board, so this affects boarding and not only the overlay. Pull-in bays keep the length of their actual bay. Stops you have edited by hand keep their own length until you use the action below." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
-                    "Reset all customized zones" },
+                    "Use the default at every stop" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZones)),
-                    "Remove every saved per-stop zone length in the current city and return those stops to automatic sizing." },
+                    "Remove every hand-edited stop length in the current city, so all stops follow the default length above. The individual lengths are discarded and cannot be recovered." },
                 { m_Settings.GetOptionLabelLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZoneColors)),
                     "Reset all stop overlay colours" },
                 { m_Settings.GetOptionDescLocaleID(nameof(ConcurrentBusBoardingSettings.ResetAllZoneColors)),
