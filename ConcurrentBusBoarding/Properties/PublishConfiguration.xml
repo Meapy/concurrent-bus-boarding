@@ -14,11 +14,12 @@ FEATURES
 - Waiting passengers are shared between the boarding buses in rapid rotation, while the game keeps its normal route, fare, animation and capacity checks.
 - Buses keep their natural traffic spacing and hold their position once boarding starts, even when the bus ahead leaves.
 - Concurrent boarding can be switched off in Options at any time; the overlays, zone editor and repair action keep working either way.
+- Options includes a Default boarding zone length slider, from 6 m to 200 m. Every bus stop follows it unless you have given that stop its own length, and nothing is stored in your city, so moving the slider back undoes it exactly. A longer zone lets a second bus stop further behind the first and still board with it, so this affects boarding and not only the overlay. Pull-in bays keep the length of their actual bay.
 - Every served bus stop has a length control plus draggable rear-edge map handles for resizing its boarding zone.
-- Per-stop edits save with the city and can be reset to automatic detection at any time.
+- Per-stop edits save with the city and can be reset to the default at any time.
 - Boarding-zone overlays use each stop's line colour by default, with custom stop and whole-line colour wheels.
 - Options provides a global fallback colour and opacity control shared by every overlay colour source.
-- Options includes a confirmed action that resets every customized zone in the current city.
+- Options includes a confirmed Use the default at every stop action, which removes every hand-edited stop length in the current city so all stops follow the default above.
 - Boarding-zone overlays show only for the selected stop by default; this can be changed in Options.
 - Options includes a 50-200% public transport attractiveness slider. The 100% default preserves vanilla passenger-route costs; higher values make passenger public transport more attractive.
 - Options includes a 100-200% extra bus attractiveness slider. The 100% default changes nothing; higher values make residents prefer buses specifically, affecting only route costs used exclusively by bus lines, so other transport types keep their normal costs.
@@ -27,7 +28,7 @@ FEATURES
 
 HOW TO EDIT A STOP
 
-Select a served bus stop and open Bus Boarding Zone. Use Length for precise adjustment, or choose Edit on map and drag either cyan rear corner. The stop remains the fixed forward edge. Right-click or press Escape when finished.
+Set Default boarding zone length in Options to change every stop at once. To give one stop its own length, select a served bus stop and open Bus Boarding Zone: use Length for precise adjustment, or choose Edit on map and drag either cyan rear corner. The stop remains the fixed forward edge. Right-click or press Escape when finished.
 
 SCOPE AND COMPATIBILITY
 
@@ -40,7 +41,7 @@ Boarding behaviour changes only passenger buses. Of the two optional attractiven
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.6.3" />
+	<ModVersion Value="1.7.0" />
 	<GameVersion Value="1.6.0*" />
 	<ChangeLog Value="Performance fix. Selecting a bus stop could freeze the game for up to a second before its boarding zone appeared. Working out how far the zone extends behind a stop followed the line's path backwards until it had collected 200 m, the largest a zone can ever be, even at an ordinary stop whose zone is 26 m; and if that path broke at a junction it could never reach 200 m, so it carried on through the entire bus line before giving up. It now collects only what the zone can show and stops when the path runs out. Dragging the Length slider no longer rebuilds geometry every frame, overlay colours are worked out once instead of every frame, and the remembered zone list is capped. Boarding behaviour, saved data and the interface are unchanged." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
