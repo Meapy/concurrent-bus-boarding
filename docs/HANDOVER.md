@@ -2,9 +2,12 @@
 
 ## Release candidate
 
-Version 1.7.1 is the current release candidate for Cities: Skylines II 1.6.0. Version 1.6.2 is public.
+Version 1.7.2 is the current release candidate for Cities: Skylines II 1.6.0. Version 1.7.1 is public: that
+listing is the repository's 1.7.0 default-zone-length release, published 2026-09-08. Store version numbers
+have run one ahead of the repository since 1.6.3 (published as 1.7.0), because ModVersion was not raised
+when those releases went out. This release closes the gap: repository and store are both 1.7.2.
 
-> Version 1.7.1 takes the mod's simulation systems off the main thread. Boarding behaviour is unchanged;
+> Version 1.7.2 takes the mod's simulation systems off the main thread. Boarding behaviour is unchanged;
 > only where the work runs changed. Every `EntityManager` data access inside `GameSimulation` is a sync
 > point: it completes every scheduled job that writes that component, and everything those jobs depend on,
 > before it returns. `PassengerDistributionSystem` did that once per simulation frame (up to 4 per rendered
@@ -62,7 +65,7 @@ Version 1.7.1 is the current release candidate for Cities: Skylines II 1.6.0. Ve
 > earlier builds, so it is rare rather than obviously broken, but an A/B against 1.7.0 on one save would
 > settle both that and the 27% expired share.
 >
-> Also in 1.7.1, and unrelated to the job conversion: every system now logs through `Mod.LogInfo` /
+> Also in 1.7.2, and unrelated to the job conversion: every system now logs through `Mod.LogInfo` /
 > `Mod.LogWarn`, which swallow a failed write. Installed IL: `UnityLogger` reopens the log file for every
 > message (`keepStreamOpen` is false) and its `Open()` is wrapped in `catch { Close(); }`, which leaves
 > `m_StreamWriter` null for `Internal_WriteStream` to dereference with no null check, so a log call throws
