@@ -118,10 +118,10 @@ namespace ConcurrentBusBoarding
             m_LastRiders = totalAboard;
             m_LastWaiting = totalWaiting;
 
-            Mod.Log.Info(
+            Mod.LogInfo(
                 $"Bus ridership: riders={totalAboard}/{totalCapacity} ({ridersDelta:+#;-#;0}) " +
                 $"waiting={totalWaiting} ({waitingDelta:+#;-#;0}) across {busLines} lines.");
-            Mod.Log.Info(
+            Mod.LogInfo(
                 $"Stop diagnosis: {totalStops} stops, {stopsWithDemand} with cims waiting, " +
                 $"{stalledStops} stalled (waiting cims but nobody boarded since the last report).");
 
@@ -135,10 +135,10 @@ namespace ConcurrentBusBoarding
             {
                 if (logged++ >= MaxStalledStopsLogged)
                 {
-                    Mod.Log.Info($"  ... and {stalled.Count - MaxStalledStopsLogged} more stalled stops.");
+                    Mod.LogInfo($"  ... and {stalled.Count - MaxStalledStopsLogged} more stalled stops.");
                     break;
                 }
-                Mod.Log.Info(line);
+                Mod.LogInfo(line);
             }
         }
 
@@ -225,7 +225,7 @@ namespace ConcurrentBusBoarding
 
             int resolved = boarded + gaveUp;
             int boardedShare = resolved > 0 ? boarded * 100 / resolved : -1;
-            Mod.Log.Info(
+            Mod.LogInfo(
                 $"Cim outcomes: arrived={arrived} boarded={boarded} gaveUp={gaveUp} " +
                 $"({boardedShare}% boarded) stillWaiting={m_WaitingCims.Count} vanished={vanished}; " +
                 $"avg wait boarded={Average(boardedWait, boarded)}f gaveUp={Average(gaveUpWait, gaveUp)}f.");
@@ -344,7 +344,7 @@ namespace ConcurrentBusBoarding
                         (EntityManager.GetComponentData<VehiclePublicTransport>(vehicle).m_State &
                             PublicTransportFlags.Boarding) != 0)
                         boardingHere++;
-                    if (EntityManager.HasComponent<ConcurrentBoardingActive>(vehicle))
+                    if (BoardingHelpers.IsSessionActive(EntityManager, vehicle))
                         managedHere++;
                 }
             }
@@ -369,7 +369,7 @@ namespace ConcurrentBusBoarding
                 EntityManager.GetComponentData<VehiclePublicTransport>(vehicle);
             bool here = BoardingHelpers.TryGetStop(EntityManager, vehicle, out Entity current) &&
                 current == stop;
-            bool managed = EntityManager.HasComponent<ConcurrentBoardingActive>(vehicle);
+            bool managed = BoardingHelpers.IsSessionActive(EntityManager, vehicle);
             return $"{vehicle.Index}:{(here ? "here" : "elsewhere")}" +
                 $"{(managed ? ":managed" : string.Empty)}" +
                 $":state={(uint)transport.m_State}" +

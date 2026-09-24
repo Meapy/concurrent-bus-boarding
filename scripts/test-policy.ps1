@@ -160,14 +160,14 @@ if ($diagnostics -notmatch 'gaveUp' -or
     $diagnostics -notmatch 'riders=') {
     throw 'Diagnosis must report cim arrivals, boardings, give-ups and live rider counts.'
 }
-if ($boardingSystems -notmatch 'm_DepartureFrame = m_SimulationSystem\.frameIndex \+ 64u' -or
+if ($boardingSystems -notmatch 'm_DepartureFrame = m_Frame \+ 64u' -or
     $boardingSystems -notmatch 'm_MaxBoardingDistance = float\.MaxValue' -or
     $boardingSystems -notmatch 'm_MinWaitingDistance = float\.MaxValue') {
     throw 'Stopped buses must retain the boarding dwell handshake with an open first window.'
 }
 if ($boardingSystems -notmatch 'internal uint AdmittedFrame;' -or
     $boardingSystems -notmatch 'BoardingPolicy\.HasSessionExpired\(' -or
-    $boardingSystems -notmatch 'ForceReleaseConcurrentBoarding\(EntityManager, bus, active\)') {
+    $boardingSystems -notmatch 'ForceReleaseConcurrentBoarding\(ref m_Lookups, ref m_Active, bus, active\)') {
     throw 'Every managed session must be released by an unconditional admission-frame deadline.'
 }
 if ($boardingSystems -notmatch 'internal byte SelectedForPassengers;' -or
@@ -179,8 +179,8 @@ if ($boardingSystems -notmatch 'ShouldExposeBoardingToVehicleAi\(active\.UsesNat
     throw 'A native boarding session must stay continuously visible to the car AI.'
 }
 if ($boardingSystems -notmatch 'BoardingPolicy\.NativeCompletionGraceFrames' -or
-    $boardingSystems -notmatch 'm_NativeCompletions\+\+' -or
-    $boardingSystems -notmatch 'm_ManagedCompletions\+\+') {
+    $boardingSystems -notmatch 'm_Counters\[NativeCompletions\]\+\+' -or
+    $boardingSystems -notmatch 'm_Counters\[ManagedCompletions\]\+\+') {
     throw 'A follower the native lifecycle cannot finish must reach managed completion before the dwell deadline.'
 }
 if ($boardingSystems -match '\.BeginBoarding\(') {
@@ -189,10 +189,10 @@ if ($boardingSystems -match '\.BeginBoarding\(') {
 if ($boardingSystems -notmatch 'if \(!foundCurrentLane\)[\s\S]*?if \(element\.m_Target == zone\.Lane\)[\s\S]*?continue;') {
     throw 'Rear-zone pieces must not start before the physical lane is found in the route path.'
 }
-if ($boardingSystems -notmatch 'ConsiderLane\(entityManager, routeLane\.m_EndLane[\s\S]*?if \(lane == Entity\.Null\)[\s\S]*?ConsiderLane\(entityManager, routeLane\.m_StartLane') {
+if ($boardingSystems -notmatch 'ConsiderLane\(ref data, routeLane\.m_EndLane[\s\S]*?if \(lane == Entity\.Null\)[\s\S]*?ConsiderLane\(ref data, routeLane\.m_StartLane') {
     throw 'The stop-side route end lane must remain authoritative over the approach lane.'
 }
-if ($boardingSystems -notmatch 'transport\.m_State \|= PublicTransportFlags\.EnRoute \| PublicTransportFlags\.Boarding;[\s\S]*?Add\(boarding, stop, bus\);') {
+if ($boardingSystems -notmatch 'transport\.m_State \|= PublicTransportFlags\.EnRoute \| PublicTransportFlags\.Boarding;[\s\S]*?boarding\.Add\(stop, bus\);') {
     throw 'Passenger distribution must expose every active bus for concurrent boarding.'
 }
 if ($boardingSystems -notmatch 'internal Entity Stop;' -or
@@ -217,8 +217,8 @@ if ($boardingSystems -notmatch 'BoardingPolicy\.IdleAttemptsBeforeDeparture' -or
     throw 'A concurrent bus must be able to finish on its own exchange, not only on the shared queue ratchet.'
 }
 if ($boardingSystems -match 'else if \(!passengersReady && !timedOut\)' -or
-    $boardingSystems -notmatch 'CountUnreadyPassengers\(EntityManager, bus,' -or
-    $boardingSystems -notmatch 'm_SessionsThatSawAWaitingCim\+\+') {
+    $boardingSystems -notmatch 'CountUnreadyPassengers\(ref m_Lookups, bus,' -or
+    $boardingSystems -notmatch 'm_Counters\[SessionsThatSawAWaitingCim\]\+\+') {
     throw 'Completion gates must be measured independently; a chained counter hides every gate after the first.'
 }
 # Players auto-disabled by 1.5.1-1.5.3 are switched back on exactly once, because the reason for
@@ -229,8 +229,12 @@ if ($settings -notmatch 'CurrentSettingsVersion' -or
     $mod -notmatch 'Settings\.EnableConcurrentBoarding = true;') {
     throw 'Players disabled by an earlier version must be migrated back exactly once.'
 }
+# Admission stops on the main thread; the distribution job is handed the flag and releases every
+# session when it is off.
 if ($settings -notmatch 'public bool EnableConcurrentBoarding' -or
-    ($boardingSystems | Select-String -Pattern '!Mod\.Settings\.EnableConcurrentBoarding' -AllMatches).Matches.Count -lt 2) {
+    $boardingSystems -notmatch 'Mod\.Settings != null && !Mod\.Settings\.EnableConcurrentBoarding\)\s*\r?\n\s*return;' -or
+    $boardingSystems -notmatch 'm_Enabled = Mod\.Settings == null \|\| Mod\.Settings\.EnableConcurrentBoarding' -or
+    $boardingSystems -notmatch 'if \(!m_Enabled\)\s*\r?\n\s*\{\s*\r?\n\s*RepayHeldTime\(active\);\s*\r?\n\s*BoardingHelpers\.ForceReleaseConcurrentBoarding\(') {
     throw 'Concurrent boarding must have a runtime kill switch that also releases active sessions.'
 }
 if ($boardingSystems -notmatch 'BoardingPolicy\.ShouldEngageConcurrentBoarding\(contenders\)' -or
@@ -242,19 +246,45 @@ if ($boardingSystems -notmatch 'BoardingPolicy\.ShouldCloseDoors\(' -or
     $boardingSystems -notmatch 'transport\.m_MaxBoardingDistance = 0f;') {
     throw 'A boarding session must stop admitting new passengers before it can require them all to be ready.'
 }
-if ($boardingSystems -notmatch 'entry\.Value\.Contains\(slot\.m_Vehicle\)' -or
-    $boardingSystems -notmatch '!BoardingHelpers\.ArePassengersReady\(EntityManager, slot\.m_Vehicle\)') {
+if ($boardingSystems -notmatch 'Contains\(buses, slot\.m_Vehicle\)' -or
+    $boardingSystems -notmatch '!BoardingHelpers\.ArePassengersReady\(ref m_Lookups, slot\.m_Vehicle\)') {
     throw 'Stop-slot rotation must not strand a cim that is still climbing aboard the current bus.'
 }
 # Zone geometry walks route segment and path-element buffers and allocates, so it must be resolved
 # once per candidate stop, never once per bus, and never for a stop the mod will not manage.
-if ($boardingSystems -notmatch 'entry\.Value\.Count <= 1 && !hasSession' -or
-    $boardingSystems -notmatch 'ObserveZone\(EntityManager, m_Zones, stop, bus\)') {
+if ($boardingSystems -notmatch 'buses\.Length <= 1 && !hasSession' -or
+    $boardingSystems -notmatch 'ObserveZone\(ref m_Lookups, stop, bus, ref hasZone, ref zone\)') {
     throw 'Boarding-zone geometry must be resolved per contended stop, after the single-bus gate.'
 }
-if ($boardingSystems -notmatch 'ReleaseStopLists\(\)' -or
-    $boardingSystems -notmatch 'm_ListPool') {
-    throw 'Per-update collections must be reused; this runs over every bus several times a second.'
+# The grouping runs over every bus several times a second, so it must not allocate managed memory.
+if ($boardingSystems -notmatch 'new StopGroups\(Allocator\.Temp\)' -or
+    $boardingSystems -match 'new Dictionary<Entity, List<Entity>>') {
+    throw 'Per-update stop grouping must use temporary native collections, not managed allocations.'
+}
+# The simulation systems must never touch EntityManager: every call there is a sync point that makes
+# the main thread wait for the simulation's jobs, once per simulation frame. That wait was ~16 ms of
+# frame time and double the worst stutters. The logic runs in jobs scheduled on Dependency instead.
+$simulationSystems = [regex]::Match($boardingSystems,
+    'public partial class ConcurrentBoardingSystem[\s\S]*?internal static class BoardingHelpers').Value
+if ($simulationSystems.Length -eq 0 -or
+    $simulationSystems -match 'EntityManager' -or
+    $simulationSystems -match 'ToEntityArray\(' -or
+    $simulationSystems -notmatch 'private struct AdmissionJob : IJob' -or
+    $simulationSystems -notmatch 'private struct DistributionJob : IJob' -or
+    $simulationSystems -notmatch 'private struct HandoffJob : IJob' -or
+    $simulationSystems -notmatch 'private struct HoldJob : IJob') {
+    throw 'Simulation systems must run their per-bus logic in jobs and never call EntityManager.'
+}
+# Starting or ending a session must not be a structural change: from the main thread it syncs the
+# whole simulation, and through a command buffer it lands several simulation frames late.
+if ($boardingSystems -notmatch 'struct ConcurrentBoardingActive : IComponentData, IEnableableComponent' -or
+    $boardingSystems -notmatch 'struct ConcurrentRouteHandoff : IComponentData, IEnableableComponent' -or
+    $boardingSystems -notmatch 'm_Active\.SetComponentEnabled\(bus, true\)' -or
+    $boardingSystems -notmatch 'sessions\.SetComponentEnabled\(bus, false\)' -or
+    $boardingSystems -match 'RemoveComponent<ConcurrentBoardingActive>' -or
+    $mod -notmatch 'UpdateAt<BoardingStateProvisionSystem>\(SystemUpdatePhase\.Modification1\)' -or
+    $boardingSystems -notmatch 'Absent = new\[\] \{ ComponentType\.ReadOnly<ConcurrentBoardingActive>\(\) \}') {
+    throw 'Sessions must be enabled and disabled, with the components provisioned in Modification1.'
 }
 # Structural changes inside GameSimulation break the game's own command-buffer acquisition.
 if ($mod -match 'UpdateAt<BoardingRepairSystem>\(SystemUpdatePhase\.GameSimulation\)' -or
@@ -320,10 +350,11 @@ if ($boardingSystems -match 'BoardingData|ScheduleBoarding|EndBoarding') {
 }
 if ($boardingSystems -notmatch 'internal Entity Route;' -or
     $boardingSystems -notmatch 'EnsureRouteAssociation\(bus, active\)' -or
-    $boardingSystems -notmatch 'AddComponentData\(bus, new CurrentRoute\(active\.Route\)\)' -or
+    $boardingSystems -notmatch 'm_CommandBuffer\.AddComponent\(bus, new CurrentRoute\(active\.Route\)\)' -or
     $boardingSystems -notmatch 'BeginRouteHandoff\(bus, active\.Route\)' -or
     $boardingSystems -notmatch 'class RouteHandoffSystem' -or
-    $boardingSystems -notmatch 'AddComponentData\(bus, new CurrentRoute\(handoff\.Route\)\)') {
+    $boardingSystems -notmatch 'm_CommandBuffer\.AddComponent\(bus, new CurrentRoute\(handoff\.Route\)\)' -or
+    $boardingSystems -notmatch 'm_EndFrameBarrier\.AddJobHandleForProducer\(handle\)') {
     throw 'Managed boarding must preserve the bus line association across native stop completion.'
 }
 if ($boardingSystems -notmatch 'ComponentType\.ReadOnly<CurrentRoute>\(\),') {
@@ -339,8 +370,21 @@ if ($boardingSystems -notmatch 'ComponentType\.ReadOnly<Owner>\(\)' -or
     $boardingSystems -notmatch 'ComponentType\.ReadOnly<CarCurrentLane>\(\)' -or
     $boardingSystems -notmatch 'ComponentType\.Exclude<TripSource>\(\)' -or
     $boardingSystems -notmatch 'ComponentType\.Exclude<OutOfControl>\(\)' -or
-    $boardingSystems -notmatch 'prefabSystem\.TryGetPrefab\(prefab, out CarPrefab _\)') {
+    $boardingSystems -notmatch 'm_PrefabData\.TryGetComponent\(prefab, out PrefabData prefabData\) &&\s*\r?\n\s*prefabData\.m_Index >= 0') {
     throw 'Admission candidates must match native transport-car safety requirements and have a loaded car prefab.'
+}
+# Installed IL: UnityLogger reopens the log file for every message (keepStreamOpen is false) and its
+# Open() swallows the failure, leaving m_StreamWriter null for Internal_WriteStream to dereference. A
+# log call therefore throws NullReferenceException at its caller whenever anything else holds the file,
+# and these callers are game systems. Observed twice in one session while the log was being read.
+if ($mod -notmatch 'internal static void LogInfo\(string message\)[\s\S]{0,400}?try[\s\S]{0,80}?Log\.Info\(message\);[\s\S]{0,200}?catch' -or
+    $mod -notmatch 'internal static void LogWarn\(string message\)') {
+    throw 'Mod.LogInfo and Mod.LogWarn must wrap the logger so a failed log line cannot throw at a system.'
+}
+foreach ($systemSource in @($boardingSystems, $repair, $diagnostics, $zoneEditor, $transitAttractiveness)) {
+    if ($systemSource -match 'Mod\.Log\.') {
+        throw 'Systems must log through Mod.LogInfo/Mod.LogWarn, never Mod.Log directly.'
+    }
 }
 if ($project -notmatch 'CbbDiagnostics' -or
     $project -notmatch 'CBB_DIAGNOSTICS' -or

@@ -2,7 +2,74 @@
 
 ## Release candidate
 
-Version 1.7.0 is the current release candidate for Cities: Skylines II 1.6.0. Version 1.6.2 is public.
+Version 1.7.1 is the current release candidate for Cities: Skylines II 1.6.0. Version 1.6.2 is public.
+
+> Version 1.7.1 takes the mod's simulation systems off the main thread. Boarding behaviour is unchanged;
+> only where the work runs changed. Every `EntityManager` data access inside `GameSimulation` is a sync
+> point: it completes every scheduled job that writes that component, and everything those jobs depend on,
+> before it returns. `PassengerDistributionSystem` did that once per simulation frame (up to 4 per rendered
+> frame at 2x, 6 at 3x) reading `PublicTransport` straight after the car AI wrote it, `BoardingHoldSystem`
+> did it on `CarNavigation` and `Moving`, which the navigation job writes for every car in the city, and
+> `ConcurrentBoardingSystem` walked every public transport vehicle with several such calls each. Measured
+> at 25.6, 7.3 and 6.7 ms/frame respectively — 86% of all main-thread simulation time, of which ~17 ms
+> reappeared in `EndFrameBarrier` with the mod off, so the net cost of the waiting was about 16 ms/frame
+> and roughly double the worst stutters. The mod's own logic was never the cost: 2-4 buses had a session at
+> a time and 646 of 62,391 stop visits were contended.
+>
+> All four systems now schedule one single-threaded `IJob` over `query.ToEntityListAsync`, reading and
+> writing through `ComponentLookup`/`BufferLookup` on `Dependency`, so the ECS dependency manager orders
+> them against the game's jobs instead of the main thread waiting. Measured after: per call 7.10 -> 0.026 ms
+> (`PassengerDistributionSystem`), 2.02 -> 0.011 ms (`BoardingHoldSystem`), 29.70 -> 0.028 ms
+> (`ConcurrentBoardingSystem`), worst call 180 -> 2.9 ms. `scripts/test-policy.ps1` now fails if
+> `EntityManager` or `ToEntityArray` reappears between `ConcurrentBoardingSystem` and `BoardingHelpers`.
+>
+> `ConcurrentBoardingActive` and `ConcurrentRouteHandoff` are `IEnableableComponent`, and
+> `BoardingStateProvisionSystem` (Modification1, via `ModificationBarrier1`) gives every road public-transport
+> vehicle both, disabled, so a session starts and ends with an enable bit a job can write. Deferring the
+> add/remove to a command buffer instead was rejected on the phase order: `EndFrameBarrier` and
+> `ModificationBarrier1` play back once per *rendered* frame in MainLoop, while `GameSimulation` runs up to
+> 4 steps per rendered frame at 2x and 6 at 3x, so a release queued in step 1 would not be visible until
+> after the last step and `BoardingHoldSystem` would keep zeroing that bus's speed for up to 5 more
+> simulation frames. Enabling and disabling is visible immediately, exactly as the structural change was.
+> `BoardingRepairSystem` disables rather than removes, since provisioning would only add the component back.
+>
+> The one deliberate timing change is restoring `CurrentRoute`, which is a structural change on a game
+> component and so goes through `EndFrameBarrier` — the barrier native `TransportCarTickJob` itself uses to
+> add (`TransportCarAISystem.cs:1099`) and remove (`:1112`, `:1171`, `:1212`, `:1247`) that component.
+> `TryAdvanceToNextWaypoint` is passed the pending route so a completion in the same frame still advances;
+> until playback the bus is absent from `ConcurrentBoardingSystem`, whose query requires `CurrentRoute`, for
+> at most the rest of that rendered frame.
+>
+> The jobs are deliberately **not** Burst compiled. They share the managed zone-geometry code
+> (`List<BoardingZonePiece>`) and `BoardingPolicy.OrdinaryZoneLength`, a mutable managed static, with the
+> overlay, and they handle 2-4 live sessions or a few hundred vehicles every 16 frames. Removing the
+> main-thread wait was the whole point; Burst would add constraints for no measurable gain. Zone and stop
+> resolution stays a single implementation, generic over `IBoardingAccess` (`BoardingAccess.cs`):
+> `SimulationLookups` in jobs, `EntityManagerAccess` for the overlay, editor, repair and diagnostics. The
+> main-thread callers must keep `EntityManager`, because a `ComponentLookup` used on the main thread needs a
+> job completion even to test `HasComponent`, which would add a sync to per-frame overlay checks.
+>
+> Counters moved into `NativeArray`, so the health, gates and engagement log lines report the previous
+> update's totals; they are cumulative, so nothing is lost. Reading them completes only the mod's own
+> previous job, once per 4,096 frames.
+>
+> Still unmeasured: a same-city A/B. The after capture (`20260922-160433`) is a different, smaller city
+> than the before one (`20260916-160712`) — 665k citizens against 1.17M — with CS2Performance's pathfinding
+> optimisations on, so its whole-frame and simulation-speed figures are not comparable and only the mod's
+> own per-system costs are. A 12-minute behaviour run showed 450 sessions ended, 1-6 active, oldest 622
+> frames against the 729-frame dwell limit, `waypoint=0`, stalled stops steady at 8-23 of 278, and no
+> errors in `Player.log`. `native=0` in that run: the native completion path recorded 2-10 per run in
+> earlier builds, so it is rare rather than obviously broken, but an A/B against 1.7.0 on one save would
+> settle both that and the 27% expired share.
+>
+> Also in 1.7.1, and unrelated to the job conversion: every system now logs through `Mod.LogInfo` /
+> `Mod.LogWarn`, which swallow a failed write. Installed IL: `UnityLogger` reopens the log file for every
+> message (`keepStreamOpen` is false) and its `Open()` is wrapped in `catch { Close(); }`, which leaves
+> `m_StreamWriter` null for `Internal_WriteStream` to dereference with no null check, so a log call throws
+> `NullReferenceException` **at its caller** whenever anything else holds the file. It surfaced twice from
+> `LineDiagnosticsSystem.cs:141` while the log was being read with PowerShell during testing, with the next
+> line of the same report logging fine. The failing call passes an already-built string and no mod frame is
+> in the trace, so it is pre-existing in every version. The policy script now forbids `Mod.Log` in a system.
 
 > Version 1.7.0 adds a **Default boarding zone length** slider, 6-200 m, default 26 m. It is a global
 > fallback, not per-stop data: `BoardingPolicy.OrdinaryZoneLength` changes from a const to a settable static

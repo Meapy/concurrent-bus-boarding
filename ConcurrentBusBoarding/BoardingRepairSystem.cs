@@ -109,7 +109,7 @@ namespace ConcurrentBusBoarding
                 if (swept > 0)
                 {
                     m_SweptSlots += swept;
-                    Mod.Log.Info(
+                    Mod.LogInfo(
                         $"Boarding sweep: released {swept} stop slots left by vehicles that are no " +
                         $"longer there ({m_SweptSlots} since load).");
                 }
@@ -133,7 +133,7 @@ namespace ConcurrentBusBoarding
 
             if (clearedSlots > 0 || repairedVehicles > 0 || refreshedStops > 0 || manual)
             {
-                Mod.Log.Info(
+                Mod.LogInfo(
                     $"Boarding repair: freed {clearedSlots} blocked stops, reset {repairedVehicles} " +
                     $"buses, and cleared the service history of {refreshedStops} stops. Lines are " +
                     $"costed as if newly built, so residents should start using them again.");
@@ -328,11 +328,12 @@ namespace ConcurrentBusBoarding
                 }
 
                 // Sessions and handoffs are not serialized, but a mid-session hot reload can leave
-                // them behind. Removing them hands the vehicle straight back to native AI.
+                // them behind. Disabling them hands the vehicle straight back to native AI; the
+                // components themselves stay, as BoardingStateProvisionSystem would only add them back.
                 if (EntityManager.HasComponent<ConcurrentBoardingActive>(vehicle))
-                    EntityManager.RemoveComponent<ConcurrentBoardingActive>(vehicle);
+                    EntityManager.SetComponentEnabled<ConcurrentBoardingActive>(vehicle, false);
                 if (EntityManager.HasComponent<ConcurrentRouteHandoff>(vehicle))
-                    EntityManager.RemoveComponent<ConcurrentRouteHandoff>(vehicle);
+                    EntityManager.SetComponentEnabled<ConcurrentRouteHandoff>(vehicle, false);
             }
             return repaired;
         }
