@@ -12,8 +12,9 @@ namespace ConcurrentBusBoarding
         // cosmetic: GetZoneBounds decides which buses count as inside a zone, so raising it lets more
         // buses board together at ordinary stops, up to OrdinaryStopLimit.
         //
-        // Never read from a Burst job. Every caller reaches it through BoardingHelpers, which is
-        // managed code taking an EntityManager.
+        // Never read from a Burst job: Burst cannot see a mutable managed static. The simulation jobs
+        // that read it through BoardingHelpers are deliberately not Burst compiled. They read it on
+        // a worker thread, which is harmless for a single float set from the options screen.
         internal const float DefaultOrdinaryZoneLength = 26f;
         private static float s_OrdinaryZoneLength = DefaultOrdinaryZoneLength;
 

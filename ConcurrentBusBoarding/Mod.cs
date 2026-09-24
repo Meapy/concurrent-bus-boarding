@@ -84,6 +84,9 @@ namespace ConcurrentBusBoarding
             BoardingSystemRegistrationSystem.Configure(updateSystem);
             updateSystem.UpdateAt<BoardingSystemRegistrationSystem>(SystemUpdatePhase.Modification1);
             updateSystem.UpdateAfter<BoardingHoldSystem, CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
+            // Gives buses the session components, disabled, so the simulation jobs above never make a
+            // structural change. Modification1 for the same reason as the repair system below.
+            updateSystem.UpdateAt<BoardingStateProvisionSystem>(SystemUpdatePhase.Modification1);
 #endif
             // Modification1, not GameSimulation: both perform structural changes, and doing that
             // inside the simulation phase makes the game's own UpdateGroupSystem fail to obtain an

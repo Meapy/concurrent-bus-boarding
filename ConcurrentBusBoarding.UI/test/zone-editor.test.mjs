@@ -52,8 +52,11 @@ assert.match(moduleText, /common\\\/focus\\\//,
   "the focus module must be discovered rather than assumed");
 
 // Coherent GT logs these as unsupported or unparseable, so they must not appear in our stylesheet.
+// Comments are stripped first: the stylesheet documents these properties as ones it avoids, and a
+// plain text search cannot tell that sentence from a declaration. It failed on the comment alone.
+const declarations = moduleText.replace(/\/\*[\s\S]*?\*\//g, "");
 for (const unsupported of ["gap:", "inset:", "align-items: start", "align-items:start"]) {
-  assert.ok(!moduleText.includes(unsupported),
+  assert.ok(!declarations.includes(unsupported),
     `stylesheet must not use ${unsupported}, which Coherent GT cannot parse`);
 }
 
