@@ -328,11 +328,12 @@ namespace ConcurrentBusBoarding
                 }
 
                 // Sessions and handoffs are not serialized, but a mid-session hot reload can leave
-                // them behind. Removing them hands the vehicle straight back to native AI.
+                // them behind. Disabling them hands the vehicle straight back to native AI; the
+                // components themselves stay, as BoardingStateProvisionSystem would only add them back.
                 if (EntityManager.HasComponent<ConcurrentBoardingActive>(vehicle))
-                    EntityManager.RemoveComponent<ConcurrentBoardingActive>(vehicle);
+                    EntityManager.SetComponentEnabled<ConcurrentBoardingActive>(vehicle, false);
                 if (EntityManager.HasComponent<ConcurrentRouteHandoff>(vehicle))
-                    EntityManager.RemoveComponent<ConcurrentRouteHandoff>(vehicle);
+                    EntityManager.SetComponentEnabled<ConcurrentRouteHandoff>(vehicle, false);
             }
             return repaired;
         }

@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.7.1 - 2026-09-24
+
+Removes most of the mod's frame-time cost in large cities. Boarding behaves the same.
+
+- Fix the mod making the game wait for its own simulation every simulation frame. The boarding
+  systems read and wrote bus, stop and car data from the main thread, and each such access makes
+  the main thread stop until every background job touching that data has finished. That includes
+  the navigation job for every car in the city. Measured on a 1.17M-citizen city this was about
+  16 ms per frame, roughly doubling the worst stutters, while the mod's own logic took almost
+  nothing. The work now runs as background jobs that slot in alongside the game's own.
+- Starting and ending a boarding session no longer restructures the bus entity. Each bus is given
+  the mod's session data once, switched off, and sessions switch it on and off. This takes effect
+  just as immediately, so held buses are released on exactly the same frame as before.
+- A bus's line is still restored after a stop when the game drops it mid-session, but through the
+  same end-of-frame step the game itself uses to change a bus's line.
+- The health and engagement log lines are now one update behind. Their totals are cumulative, so
+  nothing is lost.
+- Measured in game: the three boarding systems cost 0.15 ms of a frame between them, down from
+  39.6 ms, and their worst single update fell from 180 ms to 2.9 ms.
+
 ## 1.7.0 - 2026-08-08
 
 Adds a default boarding zone length you can set once for the whole city.
