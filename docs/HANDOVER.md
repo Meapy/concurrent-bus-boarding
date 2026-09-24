@@ -61,6 +61,15 @@ Version 1.7.1 is the current release candidate for Cities: Skylines II 1.6.0. Ve
 > errors in `Player.log`. `native=0` in that run: the native completion path recorded 2-10 per run in
 > earlier builds, so it is rare rather than obviously broken, but an A/B against 1.7.0 on one save would
 > settle both that and the 27% expired share.
+>
+> Also in 1.7.1, and unrelated to the job conversion: every system now logs through `Mod.LogInfo` /
+> `Mod.LogWarn`, which swallow a failed write. Installed IL: `UnityLogger` reopens the log file for every
+> message (`keepStreamOpen` is false) and its `Open()` is wrapped in `catch { Close(); }`, which leaves
+> `m_StreamWriter` null for `Internal_WriteStream` to dereference with no null check, so a log call throws
+> `NullReferenceException` **at its caller** whenever anything else holds the file. It surfaced twice from
+> `LineDiagnosticsSystem.cs:141` while the log was being read with PowerShell during testing, with the next
+> line of the same report logging fine. The failing call passes an already-built string and no mod frame is
+> in the trace, so it is pre-existing in every version. The policy script now forbids `Mod.Log` in a system.
 
 > Version 1.7.0 adds a **Default boarding zone length** slider, 6-200 m, default 26 m. It is a global
 > fallback, not per-stop data: `BoardingPolicy.OrdinaryZoneLength` changes from a const to a settable static

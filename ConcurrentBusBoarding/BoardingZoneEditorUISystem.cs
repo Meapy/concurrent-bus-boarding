@@ -226,7 +226,7 @@ namespace ConcurrentBusBoarding
             if (count != 0)
             {
                 EntityManager.RemoveComponent<BoardingZoneOverride>(m_ZoneOverrides);
-                Mod.Log.Info($"Reset {count} customized boarding zone(s)");
+                Mod.LogInfo($"Reset {count} customized boarding zone(s)");
             }
             RefreshBinding();
         }
@@ -241,7 +241,7 @@ namespace ConcurrentBusBoarding
                 EntityManager.RemoveComponent<BoardingZoneCustomColor>(m_CustomColors);
             if (sourceCount + customCount != 0)
             {
-                Mod.Log.Info($"Reset {sourceCount + customCount} boarding-zone colour override(s)");
+                Mod.LogInfo($"Reset {sourceCount + customCount} boarding-zone colour override(s)");
             }
             RefreshColors();
         }

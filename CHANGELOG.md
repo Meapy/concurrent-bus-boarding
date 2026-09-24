@@ -19,6 +19,10 @@ Removes most of the mod's frame-time cost in large cities. Boarding behaves the 
   nothing is lost.
 - Measured in game: the three boarding systems cost 0.15 ms of a frame between them, down from
   39.6 ms, and their worst single update fell from 180 ms to 2.9 ms.
+- Fix an error the mod could show you while writing its own log. The game's logger reopens the log
+  file for every line it writes, and if anything else is holding that file at that moment — you
+  reading it, a backup, a virus scanner — the failed write was passed on to the mod as an error
+  instead of being dropped. A missing log line now stays a missing log line.
 
 ## 1.7.0 - 2026-08-08
 

@@ -71,7 +71,7 @@ namespace ConcurrentBusBoarding
                 if (!m_LoggedWaitingForCosts)
                 {
                     m_LoggedWaitingForCosts = true;
-                    Mod.Log.Warn("Public transport attractiveness found no passenger pathfind costs; retrying.");
+                    Mod.LogWarn("Public transport attractiveness found no passenger pathfind costs; retrying.");
                 }
                 return;
             }
@@ -81,7 +81,7 @@ namespace ConcurrentBusBoarding
                 m_Initialized = true;
                 m_AppliedAttractiveness = attractiveness;
                 m_AppliedBusAttractiveness = busAttractiveness;
-                Mod.Log.Info($"Public transport attractiveness ready for {m_OriginalCosts.Count} passenger pathfind prefabs at 100%.");
+                Mod.LogInfo($"Public transport attractiveness ready for {m_OriginalCosts.Count} passenger pathfind prefabs at 100%.");
                 return;
             }
 
@@ -171,7 +171,7 @@ namespace ConcurrentBusBoarding
             m_Initialized = true;
             m_AppliedAttractiveness = attractiveness;
             m_AppliedBusAttractiveness = busAttractiveness;
-            Mod.Log.Info(
+            Mod.LogInfo(
                 $"Public transport attractiveness set to {attractiveness}% for {m_OriginalCosts.Count} " +
                 $"passenger pathfind prefabs; bus attractiveness {busAttractiveness}% applies to " +
                 $"{m_BusOnlyCosts.Count} of them.");

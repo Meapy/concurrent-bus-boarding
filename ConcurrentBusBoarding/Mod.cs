@@ -21,13 +21,48 @@ namespace ConcurrentBusBoarding
         private static FieldInfo s_AllAboardSettings;
         private static PropertyInfo s_AllAboardBusDwellMinutes;
 
+        /// <summary>
+        /// Writes a log line, and never throws at the caller.
+        ///
+        /// Installed IL: <c>Colossal.Logging.UnityLogger</c> reopens the log file for every single
+        /// message, because <c>keepStreamOpen</c> is false, and its <c>Open()</c> catches every
+        /// exception and calls <c>Close()</c> - which leaves <c>m_StreamWriter</c> null.
+        /// <c>Internal_WriteStream</c> then dereferences it without a null check, so a log call
+        /// throws <c>NullReferenceException</c> whenever the file cannot be opened at that instant.
+        /// Anything holding the file does it: a player tailing the log, a backup, a virus scanner.
+        /// The callers here are game systems, where that aborts the rest of the update and shows the
+        /// player an error, so a diagnostic line is never worth propagating.
+        /// </summary>
+        internal static void LogInfo(string message)
+        {
+            try
+            {
+                Log.Info(message);
+            }
+            catch
+            {
+                // Nowhere left to report it: the log is the thing that failed.
+            }
+        }
+
+        internal static void LogWarn(string message)
+        {
+            try
+            {
+                Log.Warn(message);
+            }
+            catch
+            {
+            }
+        }
+
         public void OnLoad(UpdateSystem updateSystem)
         {
             CrashBreadcrumbs.Start();
             CrashBreadcrumbs.Write("mod-onload before-settings");
-            Log.Info(nameof(OnLoad));
+            LogInfo(nameof(OnLoad));
             if (GameManager.instance.modManager.TryGetExecutableAsset(this, out var asset))
-                Log.Info($"Current mod asset at {asset.path}");
+                LogInfo($"Current mod asset at {asset.path}");
 
             Settings = new ConcurrentBusBoardingSettings(this);
             Settings.RegisterInOptionsUI();
@@ -65,13 +100,13 @@ namespace ConcurrentBusBoarding
                 BoardingRepairSystem.RequestHistoryRefresh();
                 if (wasDisabled)
                 {
-                    Log.Info("Concurrent boarding has been switched back on: the problem that " +
+                    LogInfo("Concurrent boarding has been switched back on: the problem that " +
                         "caused it to be disabled is fixed. Turn it off in Options if you prefer.");
                 }
             }
             CrashBreadcrumbs.Write("mod-onload after-settings");
 #if CBB_OBSERVER_ONLY
-            Log.Warn("Observer-only diagnostic build: no simulation systems are registered. " +
+            LogWarn("Observer-only diagnostic build: no simulation systems are registered. " +
                 "Boarding, holding, passenger distribution and transport attractiveness are all inactive.");
 #else
             updateSystem.UpdateBefore<PublicTransportAttractivenessSystem, ResidentAISystem>(
@@ -112,7 +147,7 @@ namespace ConcurrentBusBoarding
                     SystemUpdatePhase.GameSimulation);
                 updateSystem.UpdateAfter<PassengerDistributionSystem, TransportCarAISystem>(
                     SystemUpdatePhase.GameSimulation);
-                Log.Info("Ordered boarding systems around the native car AI.");
+                LogInfo("Ordered boarding systems around the native car AI.");
                 return;
             }
 
@@ -133,12 +168,12 @@ namespace ConcurrentBusBoarding
                     BindingFlags.Public | BindingFlags.Static);
                 s_AllAboardBusDwellMinutes = settings?.GetProperty("BusMaxDwellDelaySlider",
                     BindingFlags.Public | BindingFlags.Instance);
-                Log.Info("Ordered boarding systems around All Aboard's replacement car AI.");
-                Log.Info($"Managed follower dwell limit: {GetManagedBoardingTimeoutFrames()} frames.");
+                LogInfo("Ordered boarding systems around All Aboard's replacement car AI.");
+                LogInfo($"Managed follower dwell limit: {GetManagedBoardingTimeoutFrames()} frames.");
             }
             catch (Exception exception)
             {
-                Log.Warn($"Could not register All Aboard compatibility ordering: {exception.Message}");
+                LogWarn($"Could not register All Aboard compatibility ordering: {exception.Message}");
                 updateSystem.UpdateBefore<ConcurrentBoardingSystem, TransportCarAISystem>(
                     SystemUpdatePhase.GameSimulation);
                 updateSystem.UpdateAfter<RouteHandoffSystem, TransportCarAISystem>(
@@ -179,7 +214,7 @@ namespace ConcurrentBusBoarding
         public void OnDispose()
         {
             CrashBreadcrumbs.Write("mod-dispose");
-            Log.Info(nameof(OnDispose));
+            LogInfo(nameof(OnDispose));
             if (Settings != null)
             {
                 Settings.UnregisterInOptionsUI();

@@ -211,7 +211,7 @@ namespace ConcurrentBusBoarding
                 // is normally free. The totals are cumulative, so reporting one tick behind loses nothing.
                 m_LastReportFrame = frame;
                 m_PreviousJob.Complete();
-                Mod.Log.Info(
+                Mod.LogInfo(
                     $"Concurrent boarding engagement: contended stop visits={m_Counters[ContendedVisits]}, " +
                     $"single-bus visits left to native AI={m_Counters[SingleBusVisits]}.");
             }
@@ -668,7 +668,7 @@ namespace ConcurrentBusBoarding
         private void ReportSessionHealth()
         {
             int ended = m_Counters[NativeCompletions] + m_Counters[ManagedCompletions] + m_Counters[ExpiredSessions];
-            Mod.Log.Info(
+            Mod.LogInfo(
                 $"Concurrent boarding health: {m_Counters[ActiveSessions]} active, oldest {(uint)m_Counters[OldestSession]} frames; " +
                 $"ended={ended} (native={m_Counters[NativeCompletions]} managed={m_Counters[ManagedCompletions]} " +
                 $"expired={m_Counters[ExpiredSessions]}); sessions that ever saw a waiting cim=" +
@@ -676,13 +676,13 @@ namespace ConcurrentBusBoarding
                 $"alighted={m_Counters[PassengersAlighted]}; sticky={m_Counters[StickySlotHolds]}.");
             // Gates are independent: one attempt can fail several at once. Percentages are of
             // attempts, not of each other.
-            Mod.Log.Info(
+            Mod.LogInfo(
                 $"Concurrent boarding gates: attempts={m_Counters[CompletionAttempts]} dwell={m_Counters[GateDwell]} " +
                 $"distance={m_Counters[GateDistance]} passengers={m_Counters[GatePassengers]} settled={m_Counters[GateSettled]} " +
                 $"waypoint={m_Counters[BlockedByWaypoint]}; doors closed={m_Counters[DoorsClosed]}; " +
                 $"unready passengers={m_Counters[UnreadyPassengers]} " +
                 $"of which pointing at another vehicle={m_Counters[UnreadyForOtherVehicle]}.");
-            Mod.Log.Info(
+            Mod.LogInfo(
                 $"Line time repaid: {m_Counters[RepaidSessions]} sessions, {(int)m_Repayment[RepaidFrames]}f total, " +
                 $"last correction {m_Repayment[LastRepayBefore]:0.#} -> {m_Repayment[LastRepayAfter]:0.#}.");
         }
