@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.7.1 - 2026-09-24
+## 1.7.2 - 2026-09-24
 
 Removes most of the mod's frame-time cost in large cities. Boarding behaves the same.
 

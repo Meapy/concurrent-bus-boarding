@@ -41,7 +41,7 @@ Boarding behaviour changes only passenger buses. Of the two optional attractiven
 	<Screenshot Value="Properties/Screenshots/custom-zone-controls.jpg" />
 	<Screenshot Value="Properties/Screenshots/map-editing-handles.jpg" />
 	<Tag Value="Code Mod" />
-	<ModVersion Value="1.7.1" />
+	<ModVersion Value="1.7.2" />
 	<GameVersion Value="1.6.0*" />
 	<ChangeLog Value="A performance release: the mod costs far less frame time in a large city, and boarding behaves exactly as before. Its boarding systems used to read and write bus, stop and car data from the game's main thread, and each such access makes the main thread stop until every background job touching that data has finished - including the navigation job for every car in the city. Measured on a 1.17M-citizen city that cost about 16 ms every frame and roughly doubled the worst stutters, while the mod's own work took almost nothing. That work now runs as background jobs alongside the game's own, measured at 0.15 ms of a frame for all three systems together, down from 39.6 ms, with the worst single update down from 180 ms to 2.9 ms. Starting and ending a boarding session no longer restructures the bus, so held buses are released on exactly the same frame as before, and a bus whose line the game drops mid-stop is still given it back through the game's own end-of-frame step. No settings, saved data or interface changes." />
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-concurrent-bus-boarding-allow-several-buses-use-the-same-stop-at-the-same-time.1935925/" />
