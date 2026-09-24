@@ -373,6 +373,19 @@ if ($boardingSystems -notmatch 'ComponentType\.ReadOnly<Owner>\(\)' -or
     $boardingSystems -notmatch 'm_PrefabData\.TryGetComponent\(prefab, out PrefabData prefabData\) &&\s*\r?\n\s*prefabData\.m_Index >= 0') {
     throw 'Admission candidates must match native transport-car safety requirements and have a loaded car prefab.'
 }
+# Installed IL: UnityLogger reopens the log file for every message (keepStreamOpen is false) and its
+# Open() swallows the failure, leaving m_StreamWriter null for Internal_WriteStream to dereference. A
+# log call therefore throws NullReferenceException at its caller whenever anything else holds the file,
+# and these callers are game systems. Observed twice in one session while the log was being read.
+if ($mod -notmatch 'internal static void LogInfo\(string message\)[\s\S]{0,400}?try[\s\S]{0,80}?Log\.Info\(message\);[\s\S]{0,200}?catch' -or
+    $mod -notmatch 'internal static void LogWarn\(string message\)') {
+    throw 'Mod.LogInfo and Mod.LogWarn must wrap the logger so a failed log line cannot throw at a system.'
+}
+foreach ($systemSource in @($boardingSystems, $repair, $diagnostics, $zoneEditor, $transitAttractiveness)) {
+    if ($systemSource -match 'Mod\.Log\.') {
+        throw 'Systems must log through Mod.LogInfo/Mod.LogWarn, never Mod.Log directly.'
+    }
+}
 if ($project -notmatch 'CbbDiagnostics' -or
     $project -notmatch 'CBB_DIAGNOSTICS' -or
     $breadcrumbs -notmatch '\[Conditional\("CBB_DIAGNOSTICS"\)\][\s\S]*?void Start\(' -or
